@@ -77,7 +77,7 @@ function messageText(message: MockCall["prompt"][number]): string {
   return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
-test("streams text deltas followed by a finish event", async () => {
+test("テキスト差分を流し、最後にfinishを通知する", async () => {
   const model = createTextModel(["Hello", ", world"]);
   const session = await createModelAgent({ model }).createSession();
 
@@ -99,7 +99,7 @@ test("streams text deltas followed by a finish event", async () => {
   }
 });
 
-test("includes prior turns in the next model request", async () => {
+test("前のターンまでの履歴を次のリクエストに含める", async () => {
   const model = createTextModel(["ok"]);
   const session = await createModelAgent({ model }).createSession();
 
@@ -117,7 +117,7 @@ test("includes prior turns in the next model request", async () => {
   expect(prompt?.map(messageText)).toEqual(["first", "ok", "second"]);
 });
 
-test("session instructions override agent instructions", async () => {
+test("セッションの指示でエージェントの指示を上書きする", async () => {
   const model = createTextModel(["ok"]);
   const agent = createModelAgent({ model, instructions: "agent instruction" });
   const inherited = await agent.createSession();
@@ -141,7 +141,7 @@ test("session instructions override agent instructions", async () => {
   });
 });
 
-test("rejects a second turn while the first turn is running", async () => {
+test("ターンの実行中に次のターンを送ると失敗する", async () => {
   const { model, release } = createGatedModel();
   const session = await createModelAgent({ model }).createSession();
   const iterator = session.send("first")[Symbol.asyncIterator]();
@@ -160,13 +160,13 @@ test("rejects a second turn while the first turn is running", async () => {
   } finally {
     release();
     for (let result = await iterator.next(); !result.done; result = await iterator.next()) {
-      // Drain the first turn so the session can be closed cleanly.
+      // 最初のターンを流し切ってから閉じる。
     }
     await session.close();
   }
 });
 
-test("rejects new turns after the session is closed", async () => {
+test("閉じたセッションへの送信は失敗する", async () => {
   const model = createTextModel(["ok"]);
   const session = await createModelAgent({ model }).createSession();
 

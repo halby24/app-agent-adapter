@@ -94,7 +94,7 @@ async function collect(events: AsyncIterable<AgentEvent>): Promise<AgentEvent[]>
   return collected;
 }
 
-test("streams text deltas and a finish event", async () => {
+test("テキスト差分を流し、最後にfinishを通知する", async () => {
   const fake = new FakeRuntime([
     {
       events: parts({ type: "text_delta", text: "Hello " }, { type: "text_delta", text: "world" }),
@@ -117,7 +117,7 @@ test("streams text deltas and a finish event", async () => {
   expect(fake.prompts[0]?.mode).toBe("prompt");
 });
 
-test("hides thought deltas and publishes usage from status events", async () => {
+test("思考の差分は公開せず、statusイベントからusageを引き出す", async () => {
   const fake = new FakeRuntime([
     {
       events: parts(
@@ -148,7 +148,7 @@ test("hides thought deltas and publishes usage from status events", async () => 
   }
 });
 
-test("maps agent stop reasons to AI SDK finish reasons", async () => {
+test("エージェントの停止理由をAI SDKの終了理由に変換する", async () => {
   const reasons = [
     { stopReason: "max_tokens", expected: "length" },
     { stopReason: "refusal", expected: "content-filter" },
@@ -171,7 +171,7 @@ test("maps agent stop reasons to AI SDK finish reasons", async () => {
   }
 });
 
-test("keeps one acpx session across turns", async () => {
+test("ターンをまたいで同じacpxセッションを使い続ける", async () => {
   const fake = new FakeRuntime([
     { events: parts({ type: "text_delta", text: "first" }) },
     { events: parts({ type: "text_delta", text: "second" }) },
@@ -189,7 +189,7 @@ test("keeps one acpx session across turns", async () => {
   expect(fake.prompts[0]?.handle).toBe(fake.prompts[1]?.handle);
 });
 
-test("applies session and agent instructions to the system prompt", async () => {
+test("エージェントの指示とセッションの指示をシステムプロンプトとして渡す", async () => {
   const fake = new FakeRuntime();
   const agent = createAcpxBackedAgent(() => fake.runtime, {
     ...agentOptions,
@@ -205,7 +205,7 @@ test("applies session and agent instructions to the system prompt", async () => 
   ]);
 });
 
-test("creates a runtime and a unique session per createSession", async () => {
+test("createSessionごとにランタイムと別々のセッションを生成する", async () => {
   const fakes: FakeRuntime[] = [];
   const agent = createAcpxBackedAgent(
     () => {
@@ -226,7 +226,7 @@ test("creates a runtime and a unique session per createSession", async () => {
   expect(fakes.map((fake) => fake.ensured[0]?.mode)).toEqual(["persistent", "persistent"]);
 });
 
-test("surfaces a failed turn as an AgentError", async () => {
+test("失敗したターンをAgentErrorとして通知する", async () => {
   const fake = new FakeRuntime([
     {
       result: Promise.resolve({
@@ -248,7 +248,7 @@ test("surfaces a failed turn as an AgentError", async () => {
   }
 });
 
-test("surfaces a cancelled turn as an AbortError", async () => {
+test("キャンセルされたターンをAbortErrorとして通知する", async () => {
   const fake = new FakeRuntime([
     { result: Promise.resolve({ status: "cancelled", stopReason: "cancelled" }) },
   ]);
@@ -261,7 +261,7 @@ test("surfaces a cancelled turn as an AbortError", async () => {
   }
 });
 
-test("forwards the caller abort signal to the runtime", async () => {
+test("呼び出し元の中断シグナルをランタイムに伝える", async () => {
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -300,7 +300,7 @@ test("forwards the caller abort signal to the runtime", async () => {
   }
 });
 
-test("rejects a second turn while the first turn is running", async () => {
+test("ターンの実行中に次のターンを送ると失敗する", async () => {
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -340,7 +340,7 @@ test("rejects a second turn while the first turn is running", async () => {
   }
 });
 
-test("close closes the session, shuts down the runtime, and is idempotent", async () => {
+test("closeはセッションを閉じてランタイムを破棄し、複数回呼んでも安全", async () => {
   const fake = new FakeRuntime();
   const session = await fake.createAgent().createSession();
 
@@ -357,7 +357,7 @@ test("close closes the session, shuts down the runtime, and is idempotent", asyn
   });
 });
 
-test("shuts down the runtime when session creation fails", async () => {
+test("セッションの生成に失敗するとランタイムを破棄する", async () => {
   const fake = new FakeRuntime();
   fake.sessionError = new Error("agent is not installed");
 
