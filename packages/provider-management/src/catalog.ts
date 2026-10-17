@@ -113,6 +113,9 @@ const HARNESSES = HARNESS_NAMES.map(harnessOption);
 /** 言語モデルを直接呼び出すプロバイダの選択肢。 */
 export type ProviderOption = (typeof PROVIDERS)[number];
 
+/** プロバイダを指すID。一覧にある文字列のリテラル型。 */
+export type ProviderId = ProviderOption["id"];
+
 /** ACP互換のコーディングエージェント（ハーネス）の選択肢。 */
 export type HarnessOption = (typeof HARNESSES)[number];
 
@@ -137,6 +140,15 @@ export type AgentOption = ProviderOption | HarnessOption;
 export type AgentOptionKind = AgentOption["kind"];
 
 const AGENT_OPTIONS: readonly AgentOption[] = [...PROVIDERS, ...HARNESSES];
+
+/**
+ * 一覧にあるプロバイダのID。
+ *
+ * パッケージの公開APIではなく、同じパッケージ内でプロバイダを列挙するために使う。
+ *
+ * @internal
+ */
+export const PROVIDER_IDS: readonly ProviderId[] = PROVIDERS.map((provider) => provider.id);
 
 /**
  * 選択できるエージェントのバックエンドを列挙する。
