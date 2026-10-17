@@ -43,6 +43,20 @@ export interface SessionOptions {
 }
 
 /**
+ * acpx経由のエージェントのセッション生成設定。
+ */
+export interface AcpxSessionOptions extends SessionOptions {
+  /**
+   * このセッションだけに適用するモデル。
+   *
+   * @defaultValue 省略時はエージェント生成時の{@link AcpxAgentOptions.model}を継承する。
+   * @remarks
+   * 対応しないモデルを指定した場合は、acpxが返す`ACP_MODEL_UNSUPPORTED`の失敗がそのまま伝播する。
+   */
+  readonly model?: string;
+}
+
+/**
  * 1ターンの送信時に適用する設定。
  */
 export interface SendOptions {
@@ -183,6 +197,17 @@ export interface AcpxAgentOptions {
   readonly instructions?: string;
 
   /**
+   * すべてのセッションに適用するモデル。
+   *
+   * エージェントが受け付けるモデルID（`"gpt-5.4"`など）を指定する。
+   *
+   * @defaultValue 省略時はエージェントが選ぶ既定のモデル。
+   * @remarks
+   * 対応しないモデルを指定した場合は、acpxが返す`ACP_MODEL_UNSUPPORTED`の失敗がそのまま伝播する。
+   */
+  readonly model?: string;
+
+  /**
    * エージェントが要求した操作の扱い。
    *
    * @defaultValue `"deny-all"`
@@ -191,4 +216,53 @@ export interface AcpxAgentOptions {
    * `"approve-all"`などを明示する。
    */
   readonly permissionMode?: AcpxPermissionMode;
+}
+
+/**
+ * acpx経由でACPエージェントを動かすエージェント。
+ *
+ * {@link Agent}と同じ扱いに加えて、セッションごとにモデルを指定できる。
+ */
+export interface AcpxAgent extends Agent {
+  /**
+   * {@inheritDoc Agent.createSession}
+   *
+   * @param options - セッション固有の設定。`model`を指定すると、そのセッションだけ
+   * エージェントの既定と異なるモデルを使う。
+   */
+  createSession(options?: AcpxSessionOptions): Promise<AgentSession>;
+}
+
+/**
+ * エージェントが利用できるモデル。
+ */
+export interface AcpxModel {
+  /** モデル選択に渡すモデルID。 */
+  readonly id: string;
+
+  /** エージェントが表示名を通知した場合の表示名。 */
+  readonly name?: string;
+}
+
+/**
+ * {@link listAcpxModels}の設定。
+ */
+export interface AcpxModelsOptions {
+  /**
+   * モデルを調べるACPエージェント。
+   *
+   * acpxの組み込み名を指定する。組み込み名以外のコマンドではモデルを調べられない。
+   */
+  readonly agent: string;
+
+  /** エージェントを起動する作業ディレクトリ。 */
+  readonly cwd: string;
+
+  /**
+   * 調査を中断するためのシグナル。
+   *
+   * @remarks
+   * 中断すると、起動したエージェントプロセスを破棄して失敗する。
+   */
+  readonly abortSignal?: AbortSignal;
 }

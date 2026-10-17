@@ -41,6 +41,17 @@ export type HarnessSelection = HarnessOption & {
   readonly instructions?: string;
 
   /**
+   * セッションで使うモデル。
+   *
+   * エージェントが受け付けるモデルID（`"gpt-5.4"`など）を指定する。
+   *
+   * @defaultValue 省略時はエージェントが選ぶ既定のモデル。
+   * @remarks
+   * 対応しないモデルを指定した場合は、acpxが返す`ACP_MODEL_UNSUPPORTED`の失敗がそのまま伝播する。
+   */
+  readonly model?: string;
+
+  /**
    * エージェントが要求した操作の扱い。
    *
    * @defaultValue 省略時は`"deny-all"`（{@link createAgent}が補う）。
@@ -73,6 +84,7 @@ export function createAgent(selection: AgentSelection): Agent {
         agent: selection.id,
         cwd: selection.cwd,
         instructions: selection.instructions,
+        model: selection.model,
         permissionMode: selection.permissionMode,
       });
 }

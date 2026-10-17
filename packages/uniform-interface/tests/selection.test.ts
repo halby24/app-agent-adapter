@@ -89,10 +89,11 @@ test("プロバイダを選ぶと、渡したモデルでターンを送信で�
   }
 });
 
-test("ハーネスを選ぶと、組み込み名と作業ディレクトリがacpxに渡される", () => {
+test("ハーネスを選ぶと、組み込み名と作業ディレクトリとモデルがacpxに渡される", () => {
   createAgent({
     ...harnessOption("claude"),
     cwd: "/project",
+    model: "gpt-5.4",
     instructions: "review",
     permissionMode: "approve-reads",
   });
@@ -100,6 +101,7 @@ test("ハーネスを選ぶと、組み込み名と作業ディレクトリがac
   expect(acpx.createAcpxAgent).toHaveBeenCalledWith({
     agent: "claude",
     cwd: "/project",
+    model: "gpt-5.4",
     instructions: "review",
     permissionMode: "approve-reads",
   });

@@ -205,6 +205,28 @@ test("エージェントの指示とセッションの指示をシステムプ�
   ]);
 });
 
+test("エージェントのモデルをセッションのモデルで上書きする", async () => {
+  const fake = new FakeRuntime();
+  const agent = createAcpxBackedAgent(() => fake.runtime, { ...agentOptions, model: "gpt-5.4" });
+
+  await (await agent.createSession()).close();
+  await (await agent.createSession({ model: "gpt-5.4-mini" })).close();
+
+  expect(fake.ensured.map((input) => input.sessionOptions?.model)).toEqual([
+    "gpt-5.4",
+    "gpt-5.4-mini",
+  ]);
+});
+
+test("指示もモデルも指定しない場合はセッションの設定を渡さない", async () => {
+  const fake = new FakeRuntime();
+  const agent = createAcpxBackedAgent(() => fake.runtime, agentOptions);
+
+  await (await agent.createSession()).close();
+
+  expect(fake.ensured[0]?.sessionOptions).toBeUndefined();
+});
+
 test("createSessionごとにランタイムと別々のセッションを生成する", async () => {
   const fakes: FakeRuntime[] = [];
   const agent = createAcpxBackedAgent(

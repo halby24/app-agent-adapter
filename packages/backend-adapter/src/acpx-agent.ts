@@ -5,19 +5,20 @@ import type {
   AcpRuntimeTurnResult,
   AcpSessionRecord,
   AcpSessionStore,
+  SessionAgentOptions,
 } from "acpx/runtime";
 import { createAcpRuntime } from "acpx/runtime";
 import type { FinishReason } from "ai";
 import { AgentError } from "./errors.ts";
 import { toAgentUsage } from "./stream-parts.ts";
 import type {
+  AcpxAgent,
   AcpxAgentOptions,
-  Agent,
+  AcpxSessionOptions,
   AgentEvent,
   AgentSession,
   AgentUsage,
   SendOptions,
-  SessionOptions,
 } from "./types.ts";
 
 /**
@@ -31,7 +32,7 @@ import type {
  * アダプタが保持するインメモリのセッションストアにのみ存在し、`~/.acpx`などに
  * 永続化されない。エージェント本体のインストールと認証は利用者が済ませておく必要がある。
  */
-export function createAcpxAgent(options: AcpxAgentOptions): Agent {
+export function createAcpxAgent(options: AcpxAgentOptions): AcpxAgent {
   return createAcpxBackedAgent(
     () =>
       createAcpRuntime({
@@ -54,10 +55,13 @@ export function createAcpxAgent(options: AcpxAgentOptions): Agent {
 export function createAcpxBackedAgent(
   createRuntime: () => AcpRuntime,
   options: AcpxAgentOptions,
-): Agent {
+): AcpxAgent {
   return {
-    async createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
-      const instructions = sessionOptions?.instructions ?? options.instructions;
+    async createSession(sessionOptions?: AcpxSessionOptions): Promise<AgentSession> {
+      const sessionAgentOptions = toSessionAgentOptions(
+        sessionOptions?.instructions ?? options.instructions,
+        sessionOptions?.model ?? options.model,
+      );
       const runtime = createRuntime();
       try {
         const handle = await runtime.ensureSession({
@@ -69,7 +73,7 @@ export function createAcpxBackedAgent(
           // 記録先はインメモリのストアなのでディスクには残らない。
           mode: "persistent",
           cwd: options.cwd,
-          ...(instructions === undefined ? {} : { sessionOptions: { systemPrompt: instructions } }),
+          ...(sessionAgentOptions === undefined ? {} : { sessionOptions: sessionAgentOptions }),
         });
         return new AcpxAgentSession(runtime, handle);
       } catch (error) {
@@ -77,6 +81,24 @@ export function createAcpxBackedAgent(
         throw error;
       }
     },
+  };
+}
+
+/**
+ * acpxに渡すセッションの設定を組み立てる。
+ *
+ * 何も指定がない場合は、セッションの設定を渡さない（acpxに既定を任せる）。
+ */
+function toSessionAgentOptions(
+  instructions: string | undefined,
+  model: string | undefined,
+): SessionAgentOptions | undefined {
+  if (instructions === undefined && model === undefined) {
+    return undefined;
+  }
+  return {
+    ...(instructions === undefined ? {} : { systemPrompt: instructions }),
+    ...(model === undefined ? {} : { model }),
   };
 }
 

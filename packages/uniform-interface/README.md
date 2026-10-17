@@ -29,7 +29,12 @@ const agent =
   option.kind === "provider"
     ? // モデルの生成（＝APIキーの取り扱い）はアプリ側の責務
       createAgent({ ...option, model: openai("gpt-5.4-mini") })
-    : createAgent({ ...option, cwd: "/path/to/project", permissionMode: "approve-all" });
+    : createAgent({
+        ...option,
+        cwd: "/path/to/project",
+        model: "gpt-5.4",
+        permissionMode: "approve-all",
+      });
 
 const session = await agent.createSession();
 
@@ -46,13 +51,16 @@ try {
 
 ## 公開API
 
-| API                      | 説明                                                |
-| ------------------------ | --------------------------------------------------- |
-| `listAgentOptions()`     | 選択できるバックエンドの一覧を返す                  |
-| `findAgentOption(id)`    | IDに一致する選択肢を返す。該当がなければ`undefined` |
-| `createAgent(selection)` | 選択したバックエンドのエージェントを生成する        |
+| API                       | 説明                                                |
+| ------------------------- | --------------------------------------------------- |
+| `listAgentOptions()`      | 選択できるバックエンドの一覧を返す                  |
+| `findAgentOption(id)`     | IDに一致する選択肢を返す。該当がなければ`undefined` |
+| `createAgent(selection)`  | 選択したバックエンドのエージェントを生成する        |
+| `listAcpxModels(options)` | ハーネス（acpx）が利用できるモデルの一覧を調べる    |
 
 選択の型（`ProviderSelection` / `HarnessSelection`）は、一覧の選択肢の型（`ProviderOption` / `HarnessOption`）に必要な指定を加えたもので、`id`は一覧にある文字列のリテラル型になる。一覧にないIDを指定するとコンパイル時に検出される。
+
+プロバイダのモデルはAI SDKのプロバイダから取得する。ハーネスのモデルはバックエンド固有で、`listAcpxModels()` が使えるのはacpxの組み込み名のハーネスだけになる。
 
 ### 一覧の内容
 

@@ -83,6 +83,8 @@ const agent = createAcpxAgent({
   agent: "claude",
   cwd: "/path/to/project",
   instructions: "あなたはリポジトリを調査して修正するエージェントです。",
+  // 省略するとエージェントが選ぶ既定のモデルになる。
+  model: "gpt-5.4",
   // 既定は "deny-all"。編集やコマンド実行を許す場合は明示する。
   permissionMode: "approve-all",
 });
@@ -101,6 +103,24 @@ try {
 ```
 
 `agent` にはacpxの組み込み名（`"claude"`、`"codex"`、`"pi"`、`"gemini"` など）か、ACPサーバを起動するコマンドを渡す。セッション固有の指示は `createSession({ instructions })` で上書きできる。
+
+モデルの指定は、エージェント生成時の `model` が全セッションの既定になる。`createSession({ model })` を使うと、そのセッションだけ別のモデルにできる。対応しないモデルを指定した場合は、acpxが返す `ACP_MODEL_UNSUPPORTED` の失敗がそのまま伝播する。
+
+### 利用できるモデルを調べる
+
+エージェントが受け付けるモデルは、エージェントのプロセスを1つ起動して調べる。作業ディレクトリの設定に依存するため、セッションと同じ `cwd` を渡す。
+
+```ts
+import { listAcpxModels } from "backend-adapter";
+
+const models = await listAcpxModels({ agent: "claude", cwd: "/path/to/project" });
+
+for (const model of models) {
+  console.log(model.id, model.name ?? "(表示名なし)");
+}
+```
+
+調べられるのはacpxの組み込み名のエージェントに限る。エージェントがモデルを通知しない場合は空の一覧になる。
 
 ### 中断
 
@@ -125,6 +145,7 @@ controller.abort();
 | ------------------------------- | ------------------------------------------------------- |
 | `createModelAgent(options)`     | 言語モデルを直接呼び出すエージェントを生成する          |
 | `createAcpxAgent(options)`      | acpx経由でACPエージェントを動かすエージェントを生成する |
+| `listAcpxModels(options)`       | acpxのエージェントが利用できるモデルの一覧を調べる      |
 | `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する              |
 | `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す                |
 | `session.close()`               | セッションを閉じ、進行中のターンを中断する              |
@@ -162,7 +183,7 @@ interface AgentUsage {
 | `session-busy`   | 前のターンが進行中に次のターンを送信した |
 | `turn-failed`    | エージェントがターンを失敗として終えた   |
 
-モデルやエージェント、プロバイダに起因する失敗は、判別可能な場合は包まず、そのまま伝播する。`turn-failed` の `cause` にはエージェントが報告した詳細が入る。中断されたターンは `AbortError` として通知される。
+モデルやエージェント、プロバイダに起因する失敗は、判別可能な場合は包まず、そのまま伝播する。`turn-failed` の `cause` にはエージェントが報告した詳細が入る。中断されたターンは `AbortError` として通知される。acpx経由のエージェントが対応しないモデルを通知した場合は、acpxの `RequestedModelUnsupportedError`（`code` は `ACP_MODEL_UNSUPPORTED`）がそのまま伝播する。
 
 ## 現在の制約
 
@@ -172,6 +193,8 @@ interface AgentUsage {
 - 会話履歴はセッションのメモリ上にのみ存在し、永続化・復元はできない（acpxのセッションストアはアダプタがインメモリで持つ）
 - セッションをまたいだ履歴の共有はできない
 - セッションごとにacpxのランタイムとエージェントプロセスを生成する
+- モデルの上書きはacpx経由のエージェントだけで、`createSession({ model })` を指定できる。言語モデルを直接呼び出すエージェントは、モデルをエージェント生成時に固定する
+- `listAcpxModels()` が調べられるのはacpxの組み込み名のエージェントだけ。ACPサーバを起動するコマンドを `agent` に渡した場合は調べられない
 
 認証はエージェント本体（Claude Code、Codexなど）が担う。アダプタはacpx経由でそれをそのまま利用する。
 

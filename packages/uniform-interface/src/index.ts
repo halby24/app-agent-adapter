@@ -14,6 +14,8 @@ export { createAgent } from "./selection.ts";
 export type { AgentSelection, HarnessSelection, ProviderSelection } from "./selection.ts";
 export { AgentError } from "backend-adapter";
 export type { AgentErrorCode } from "backend-adapter";
+export { listAcpxModels } from "backend-adapter";
+export type { AcpxModel, AcpxModelsOptions } from "backend-adapter";
 export type {
   AcpxPermissionMode,
   Agent,

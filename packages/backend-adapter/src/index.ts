@@ -11,12 +11,17 @@
  * @packageDocumentation
  */
 export { createAcpxAgent } from "./acpx-agent.ts";
+export { listAcpxModels } from "./acpx-models.ts";
 export { createModelAgent } from "./model-agent.ts";
 export { AgentError } from "./errors.ts";
 export type { AgentErrorCode } from "./errors.ts";
 export type {
+  AcpxAgent,
   AcpxAgentOptions,
+  AcpxModel,
+  AcpxModelsOptions,
   AcpxPermissionMode,
+  AcpxSessionOptions,
   Agent,
   AgentEvent,
   AgentSession,
