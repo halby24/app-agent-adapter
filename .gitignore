@@ -10,3 +10,7 @@ dist
 .env
 .env.*
 !.env.example
+
+
+# APM dependencies
+apm_modules/
