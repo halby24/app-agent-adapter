@@ -1,6 +1,39 @@
 import { createAgentRegistry } from "acpx/agent-registry";
 import { inspectAgentModels } from "acpx/runtime";
-import type { AcpxModel, AcpxModelsOptions } from "./types.ts";
+
+/**
+ * エージェントが利用できるモデル。
+ */
+export interface AcpxModel {
+  /** モデル選択に渡すモデルID。 */
+  readonly id: string;
+
+  /** エージェントが表示名を通知した場合の表示名。 */
+  readonly name?: string;
+}
+
+/**
+ * {@link listAcpxModels}の設定。
+ */
+export interface AcpxModelsOptions {
+  /**
+   * モデルを調べるACPエージェント。
+   *
+   * acpxの組み込み名を指定する。組み込み名以外のコマンドではモデルを調べられない。
+   */
+  readonly agent: string;
+
+  /** エージェントを起動する作業ディレクトリ。 */
+  readonly cwd: string;
+
+  /**
+   * 調査を中断するためのシグナル。
+   *
+   * @remarks
+   * 中断すると、起動したエージェントプロセスを破棄して失敗する。
+   */
+  readonly abortSignal?: AbortSignal;
+}
 
 /**
  * エージェントが利用できるモデルを調べる。

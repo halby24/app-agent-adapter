@@ -15,6 +15,7 @@ Vercel AI SDKはやりたいことに近いが、クラウドサービス側で�
 pnpm workspaceのモノレポ。パッケージは `packages/` 配下に置く。
 
 - `packages/backend-adapter` — エージェントのバックエンドをアダプタして統一APIで扱うパッケージ
+- `packages/provider-management` — 利用できるプロバイダやハーネス、そのモデルを管理するパッケージ
 - `packages/uniform-interface` — バックエンドを列挙して選択式で使えるようにするパッケージ
 
 ツールチェーンはVite+ (`vp`) に統一する。lint/fmt/type checkの設定はルートの `vite.config.ts` に集約し、パッケージ側の `vite.config.ts` にはビルド設定だけを置く。
@@ -26,7 +27,7 @@ pnpm workspaceのモノレポ。パッケージは `packages/` 配下に置く�
   - 以下のバックエンドに対応
     - APIキー直接
     - acpxを使ったACPエージェントの操作
-- **プロバイダ、認証管理**
+- **`packages/provider-management`**（プロバイダ、認証管理）
   - 利用可能なプロバイダ、ハーネス一覧、認証をまとめて管理する
   - 選んだモデル、経路、設定を一つのインターフェースにまとめて統一インターフェースに渡せる
 - **`packages/uniform-interface`**（バックエンドを統一して扱うためのインターフェース）

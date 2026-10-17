@@ -1,5 +1,4 @@
-import type { AcpxPermissionMode, Agent } from "backend-adapter";
-import { createAcpxAgent, createModelAgent } from "backend-adapter";
+import type { AcpxPermissionMode } from "backend-adapter";
 import type { LanguageModel } from "ai";
 import type { HarnessOption, ProviderOption } from "./catalog.ts";
 
@@ -54,7 +53,7 @@ export type HarnessSelection = HarnessOption & {
   /**
    * エージェントが要求した操作の扱い。
    *
-   * @defaultValue 省略時は`"deny-all"`（{@link createAgent}が補う）。
+   * @defaultValue 省略時はバックエンドの既定（acpxは`"deny-all"`）。
    */
   readonly permissionMode?: AcpxPermissionMode;
 };
@@ -64,27 +63,6 @@ export type HarnessSelection = HarnessOption & {
  *
  * 一覧の{@link AgentOption}をそのまま広げ、選択したバックエンドに必要な指定を
  * 加えて作る。`kind`で種類を絞り込めるため、種類ごとに必要な指定は
- * `option.kind`の判定で分岐できる。
+ * `option.kind`の判定で分岐できる。エージェントの生成は利用側が行う。
  */
 export type AgentSelection = ProviderSelection | HarnessSelection;
-
-/**
- * 一覧から選んだバックエンドのエージェントを生成する。
- *
- * @param selection - 選択した選択肢と、そのバックエンドに必要な指定。
- * @returns 選択したバックエンドのエージェント。利用方法は選択した種類によらず同じ。
- * @remarks
- * セッションの生成はエージェントの{@link Agent.createSession}で行う。プロバイダを選んだ場合は
- * 渡したモデルがそのまま使われ、ハーネスを選んだ場合はacpxがセッションごとにエージェントを起動する。
- */
-export function createAgent(selection: AgentSelection): Agent {
-  return selection.kind === "provider"
-    ? createModelAgent({ model: selection.model, instructions: selection.instructions })
-    : createAcpxAgent({
-        agent: selection.id,
-        cwd: selection.cwd,
-        instructions: selection.instructions,
-        model: selection.model,
-        permissionMode: selection.permissionMode,
-      });
-}

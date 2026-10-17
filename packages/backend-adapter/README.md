@@ -108,19 +108,7 @@ try {
 
 ### 利用できるモデルを調べる
 
-エージェントが受け付けるモデルは、エージェントのプロセスを1つ起動して調べる。作業ディレクトリの設定に依存するため、セッションと同じ `cwd` を渡す。
-
-```ts
-import { listAcpxModels } from "backend-adapter";
-
-const models = await listAcpxModels({ agent: "claude", cwd: "/path/to/project" });
-
-for (const model of models) {
-  console.log(model.id, model.name ?? "(表示名なし)");
-}
-```
-
-調べられるのはacpxの組み込み名のエージェントに限る。エージェントがモデルを通知しない場合は空の一覧になる。
+利用できるモデルの一覧は [provider-management](../provider-management) の `listAcpxModels()` が扱う。エージェントのプロセスを1つ起動して調べるため、セッションと同じ `cwd` を渡す。
 
 ### 中断
 
@@ -145,7 +133,6 @@ controller.abort();
 | ------------------------------- | ------------------------------------------------------- |
 | `createModelAgent(options)`     | 言語モデルを直接呼び出すエージェントを生成する          |
 | `createAcpxAgent(options)`      | acpx経由でACPエージェントを動かすエージェントを生成する |
-| `listAcpxModels(options)`       | acpxのエージェントが利用できるモデルの一覧を調べる      |
 | `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する              |
 | `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す                |
 | `session.close()`               | セッションを閉じ、進行中のターンを中断する              |
@@ -194,7 +181,6 @@ interface AgentUsage {
 - セッションをまたいだ履歴の共有はできない
 - セッションごとにacpxのランタイムとエージェントプロセスを生成する
 - モデルの上書きはacpx経由のエージェントだけで、`createSession({ model })` を指定できる。言語モデルを直接呼び出すエージェントは、モデルをエージェント生成時に固定する
-- `listAcpxModels()` が調べられるのはacpxの組み込み名のエージェントだけ。ACPサーバを起動するコマンドを `agent` に渡した場合は調べられない
 
 認証はエージェント本体（Claude Code、Codexなど）が担う。アダプタはacpx経由でそれをそのまま利用する。
 

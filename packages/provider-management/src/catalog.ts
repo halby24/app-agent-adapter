@@ -119,8 +119,8 @@ export type HarnessOption = (typeof HARNESSES)[number];
 /**
  * 利用者が選択できるエージェントのバックエンド。
  *
- * {@link listAgentOptions}が返す一覧の要素であり、選択時は
- * {@link AgentSelection}として{@link createAgent}に渡す。
+ * {@link listAgentOptions}が返す一覧の要素であり、選択時は{@link AgentSelection}に
+ * 広げて、そのバックエンドに必要な指定を加える。
  *
  * - `id`: 一覧内で一意なID。プロバイダはAI SDKのプロバイダ名、ハーネスはacpxの組み込み名と一致する。
  * - `label`: 一覧に表示する名前。

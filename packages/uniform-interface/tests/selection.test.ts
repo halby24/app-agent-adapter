@@ -1,7 +1,9 @@
 import { MockLanguageModelV4 } from "ai/test";
+import type { HarnessOption, ProviderOption } from "provider-management";
+import { findAgentOption } from "provider-management";
 import { expect, test, vi } from "vite-plus/test";
-import type { AgentEvent, HarnessOption, ProviderOption } from "../src/index.ts";
-import { createAgent, findAgentOption } from "../src/index.ts";
+import type { AgentEvent } from "../src/index.ts";
+import { createAgent } from "../src/index.ts";
 
 const acpx = vi.hoisted(() => ({
   createAcpxAgent: vi.fn(() => ({

@@ -1,23 +1,17 @@
 /**
- * エージェントのバックエンドを統一インターフェースで扱う。
+ * 選んだバックエンドを統一インターフェースのエージェントとして扱う。
  *
- * プロバイダ（AI SDKの言語モデル）とハーネス（ACP互換のコーディングエージェント）を
- * {@link listAgentOptions}で事前に列挙し、利用者が選んだものを{@link createAgent}で
- * エージェントに変換する。生成後の{@link Agent}と{@link AgentSession}の扱いは
- * 選択したバックエンドによらず同じで、型は`backend-adapter`が定義する。
+ * バックエンドの選択（どのプロバイダやハーネスを、どのモデルで使うか）は
+ * `provider-management`が扱う。このパッケージは、その選択を{@link createAgent}で
+ * バックエンド方式によらない{@link Agent}に変換し、生成後の{@link AgentSession}の
+ * 扱いを共通にする。{@link Agent}と{@link AgentSession}の型は`backend-adapter`が定義する。
  *
  * @packageDocumentation
  */
-export { findAgentOption, listAgentOptions } from "./catalog.ts";
-export type { AgentOption, AgentOptionKind, HarnessOption, ProviderOption } from "./catalog.ts";
-export { createAgent } from "./selection.ts";
-export type { AgentSelection, HarnessSelection, ProviderSelection } from "./selection.ts";
+export { createAgent } from "./create-agent.ts";
 export { AgentError } from "backend-adapter";
 export type { AgentErrorCode } from "backend-adapter";
-export { listAcpxModels } from "backend-adapter";
-export type { AcpxModel, AcpxModelsOptions } from "backend-adapter";
 export type {
-  AcpxPermissionMode,
   Agent,
   AgentEvent,
   AgentSession,

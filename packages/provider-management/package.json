@@ -1,0 +1,57 @@
+{
+  "name": "provider-management",
+  "version": "0.0.0",
+  "description": "Manages the providers, harnesses, and models available to an app.",
+  "keywords": [
+    "acpx",
+    "agent",
+    "ai",
+    "ai-sdk",
+    "electrobun",
+    "electron"
+  ],
+  "homepage": "https://github.com/halby24/app-agent-adapter/tree/main/packages/provider-management#readme",
+  "bugs": {
+    "url": "https://github.com/halby24/app-agent-adapter/issues"
+  },
+  "license": "MIT",
+  "author": "HALBY",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/halby24/app-agent-adapter.git",
+    "directory": "packages/provider-management"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "acpx": "^0.19.5",
+    "ai": "^7.0.142",
+    "backend-adapter": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "bumpp": "^12.3.0",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

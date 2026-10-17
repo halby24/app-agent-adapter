@@ -1,17 +1,18 @@
 # uniform-interface
 
-エージェントのバックエンドを統一インターフェースで扱うパッケージ。
+選んだバックエンドを、統一インターフェースのエージェントとして扱うパッケージ。
 
-利用できるプロバイダ（AI SDKの言語モデル）とハーネス（ACP互換のコーディングエージェント）を事前に列挙し、利用者が選んだものを同じAPIのエージェントに変換する。バックエンドごとの違いは選択時の指定に閉じ、生成後のセッションの扱いは共通になる。
+どのプロバイダやハーネスを、どのモデルで使うかという選択は [provider-management](../provider-management) が扱う。このパッケージは、その選択（`AgentSelection`）を `createAgent()` でバックエンド方式によらない `Agent` に変換し、生成後のセッションの扱いを共通にする。
 
 バックエンドの実装は [backend-adapter](../backend-adapter) に委ねる。`Agent` や `AgentSession` などの型もbackend-adapterの定義をそのまま公開する。
 
 ## 使い方
 
-選択肢は一覧から取得し、選んだ選択肢をそのまま広げて選択の指定を作る。選択肢の`kind`で種類を判定できる。
+選択の指定は `provider-management` が組み立てる。保存された選択からの復元を含めた手順は、そちらのREADMEを参照。
 
 ```ts
-import { createAgent, findAgentOption, listAgentOptions } from "uniform-interface";
+import { createAgent } from "uniform-interface";
+import { findAgentOption, listAgentOptions } from "provider-management";
 
 // 選択肢を列挙して、利用者に選ばせる
 for (const option of listAgentOptions()) {
@@ -19,22 +20,18 @@ for (const option of listAgentOptions()) {
 }
 
 // 保存された選択などから選択肢を引き当てる
-const option = findAgentOption("openai");
-if (option === undefined) {
-  throw new Error("一覧にないバックエンドです");
+const option = findAgentOption("claude");
+if (option?.kind !== "harness") {
+  throw new Error("ハーネスが選ばれていない");
 }
 
 // 選択した選択肢に、そのバックエンドに必要な指定だけを加える
-const agent =
-  option.kind === "provider"
-    ? // モデルの生成（＝APIキーの取り扱い）はアプリ側の責務
-      createAgent({ ...option, model: openai("gpt-5.4-mini") })
-    : createAgent({
-        ...option,
-        cwd: "/path/to/project",
-        model: "gpt-5.4",
-        permissionMode: "approve-all",
-      });
+const agent = createAgent({
+  ...option,
+  cwd: "/path/to/project",
+  model: "gpt-5.4",
+  permissionMode: "approve-all",
+});
 
 const session = await agent.createSession();
 
@@ -51,31 +48,18 @@ try {
 
 ## 公開API
 
-| API                       | 説明                                                |
-| ------------------------- | --------------------------------------------------- |
-| `listAgentOptions()`      | 選択できるバックエンドの一覧を返す                  |
-| `findAgentOption(id)`     | IDに一致する選択肢を返す。該当がなければ`undefined` |
-| `createAgent(selection)`  | 選択したバックエンドのエージェントを生成する        |
-| `listAcpxModels(options)` | ハーネス（acpx）が利用できるモデルの一覧を調べる    |
+| API                      | 説明                                       |
+| ------------------------ | ------------------------------------------ |
+| `createAgent(selection)` | 選んだバックエンドのエージェントを生成する |
 
-選択の型（`ProviderSelection` / `HarnessSelection`）は、一覧の選択肢の型（`ProviderOption` / `HarnessOption`）に必要な指定を加えたもので、`id`は一覧にある文字列のリテラル型になる。一覧にないIDを指定するとコンパイル時に検出される。
-
-プロバイダのモデルはAI SDKのプロバイダから取得する。ハーネスのモデルはバックエンド固有で、`listAcpxModels()` が使えるのはacpxの組み込み名のハーネスだけになる。
-
-### 一覧の内容
-
-一覧はこのパッケージが組み込みで持つ。選択肢の型は一覧のデータから導出し、この一覧がIDの正本になる。
-
-- プロバイダ: AI SDKの公式プロバイダのうち言語モデルを提供するもの。選択に必要なパッケージ名（`@ai-sdk/openai`など）を`package`に持つ
-- ハーネス: acpxの組み込みエージェント名（`claude`、`codex`など）。表示名の別名は持たず、IDをそのまま表示に使う
-
-acpxがエージェントを追加・改名した場合は、一覧の見直しが必要になる。
+`selection` は `provider-management` の `AgentSelection`（`ProviderSelection` / `HarnessSelection`）を取る。`kind`で種類が分かれるため、種類ごとに必要な指定は`option.kind`の判定で分岐できる。
 
 ## 現在の制約
 
-- モデルの生成と認証はアプリ側の責務。プロバイダを選ぶ場合は認証済みのモデルを渡す（認証仲介は未実装）
-- ハーネスは利用者がエージェント本体のインストールと認証を済ませておく必要がある
-- 選択できるのは一覧にあるものだけで、アプリ側から選択肢を追加することはできない
+- 選択肢の列挙とモデルの選択は扱わない（`provider-management` の役割）
+- プロバイダを選ぶ場合は認証済みのモデルを渡す。ハーネスは利用者がエージェント本体のインストールと認証を済ませておく必要がある
+- セッションをまたいだ履歴の共有はできない（バックエンドの実装に従う）
+- チャット向け／エージェント向けの使い分けは未実装
 
 ## 開発
 
@@ -88,7 +72,7 @@ vp check
 vp run -r test
 ```
 
-`backend-adapter` の型とコードを `dist` から解決するため、チェックとテストの前に一度ビルドしておく。このパッケージだけを対象にする場合は `vp -C packages/uniform-interface test` のように指定する。
+`backend-adapter` と `provider-management` の型とコードを `dist` から解決するため、チェックとテストの前に一度ビルドしておく。このパッケージだけを対象にする場合は `vp -C packages/uniform-interface test` のように指定する。
 
 ## ライセンス
 
