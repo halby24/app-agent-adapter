@@ -1,17 +1,25 @@
 /**
  * 選んだバックエンドを統一インターフェースのエージェントとして扱う。
  *
- * バックエンドの選択（どのプロバイダやハーネスを、どのモデルで使うか）は
- * `provider-management`が扱う。このパッケージは、その選択を{@link createAgent}で
- * バックエンド方式によらない{@link Agent}に変換し、生成後の{@link AgentSession}の
- * 扱いを共通にする。{@link Agent}と{@link AgentSession}の型は`backend-adapter`が定義する。
+ * どのバックエンドを選ぶかは`provider-management`が扱い、このパッケージは
+ * 選ばれたバックエンド（`provider-management`の`AgentChoice`）を、用途に合わせて
+ * 次の2つの入口でバックエンド方式によらない{@link Agent}に変換する。
+ *
+ * - {@link createChatAgent}: ファイルを扱わず、ツールも使わないチャット用
+ * - {@link createCodingAgent}: 作業ディレクトリを指定し、ファイルを扱わせるエージェント向け
+ *
+ * {@link Agent}と{@link AgentSession}の型は`backend-adapter`が定義する。
  *
  * @packageDocumentation
  */
-export { createAgent } from "./create-agent.ts";
+export { createChatAgent } from "./chat-agent.ts";
+export type { ChatAgentOptions } from "./chat-agent.ts";
+export { createCodingAgent } from "./coding-agent.ts";
+export type { CodingAgentOptions } from "./coding-agent.ts";
 export { AgentError } from "backend-adapter";
 export type { AgentErrorCode } from "backend-adapter";
 export type {
+  AcpxPermissionMode,
   Agent,
   AgentEvent,
   AgentSession,

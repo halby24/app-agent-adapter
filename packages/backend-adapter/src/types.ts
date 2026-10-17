@@ -232,3 +232,34 @@ export interface AcpxAgent extends Agent {
    */
   createSession(options?: AcpxSessionOptions): Promise<AgentSession>;
 }
+
+/**
+ * {@link createPiAgent}の設定。
+ *
+ * @remarks
+ * 内蔵のPI Coding Agentをプロセス内で動かす。エージェント本体のインストールは不要で、
+ * モデルとその認証はPI側の設定（`~/.pi/agent`など）に従う。
+ */
+export interface PiAgentOptions {
+  /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
+  readonly cwd: string;
+
+  /**
+   * すべてのセッションに適用するシステム指示。
+   *
+   * @defaultValue 省略時はPIの既定のプロンプトを使う。
+   * @remarks
+   * acpxと同じく、PIの既定のプロンプトを置き換える（PIが足すスキルやコンテキストの節はそのまま）。
+   */
+  readonly instructions?: string;
+
+  /**
+   * エージェントが要求した操作の扱い。
+   *
+   * @defaultValue `"deny-all"`
+   * @remarks
+   * acpxの権限モードと同じ語彙を使う。`"deny-all"`と`"approve-reads"`では
+   * 読み取り以外のツール（書き込み、コマンド実行）を渡さないため、結果は同じになる。
+   */
+  readonly permissionMode?: AcpxPermissionMode;
+}

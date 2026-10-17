@@ -41,12 +41,12 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "ai": "^7.0.142",
     "backend-adapter": "workspace:*",
     "provider-management": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "ai": "^7.0.142",
     "bumpp": "^12.3.0",
     "typescript": "catalog:",
     "vite-plus": "catalog:"

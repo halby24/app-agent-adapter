@@ -2,38 +2,41 @@
 
 利用できるプロバイダ、ハーネスと、そのモデルを管理するパッケージ。
 
-アプリが選べるバックエンド（AI SDKのプロバイダとACP互換のハーネス）を事前に列挙し、選んだバックエンドを1つの指定（`AgentSelection`）にまとめる。ハーネスが利用できるモデルはバックエンドから調べる。プロバイダのAPIキーはこのパッケージが保持する。エージェントの生成は行わず、まとめた指定を [uniform-interface](../uniform-interface) に渡す。
+アプリが選べるバックエンド（AI SDKのプロバイダとACP互換のハーネス）を事前に列挙し、選んだものを「選択」（`AgentChoice` = 種類とID）として表す。ハーネスが利用できるかや、モデルの一覧もここで調べ、プロバイダのAPIキーはこのパッケージが保持する。
+
+選んだバックエンドをどう動かすか（作業ディレクトリ、モデル、権限、チャット／エージェントの使い分け）は扱わない。エージェントの生成は [uniform-interface](../uniform-interface) の役割。
 
 ## 使い方
 
 ```ts
-import { findAgentOption, listAcpxModels, listAgentOptions } from "provider-management";
+import {
+  listAcpxModels,
+  listAcpxHarnesses,
+  listAgentOptions,
+  toAgentChoice,
+} from "provider-management";
 
 // 選択肢を列挙して、利用者に選ばせる
 for (const option of listAgentOptions()) {
   console.log(option.kind, option.id, option.label);
 }
 
-// ハーネスが利用できるモデルを調べる
-const models = await listAcpxModels({ agent: "claude", cwd: "/path/to/project" });
-
-// 選んだ選択肢を、そのバックエンドに必要な指定と合わせて1つにまとめる
-const option = findAgentOption("claude");
-if (option?.kind !== "harness") {
-  throw new Error("ハーネスが選ばれていない");
+// ハーネスが使える状態かを調べる
+for (const harness of listAcpxHarnesses()) {
+  console.log(harness.id, harness.status);
 }
 
-const selection = {
-  ...option,
-  cwd: "/path/to/project",
-  model: models[0]?.id,
-  permissionMode: "approve-all",
-} as const;
+// 選ばれた選択肢から、選択（種類とIDだけ）を取り出す
+const option = listAgentOptions().find((entry) => entry.kind === "harness");
+const choice = toAgentChoice(option);
 
-// あとは uniform-interface の createAgent に渡す
+// ハーネスが利用できるモデルを調べる（作業ディレクトリは、モデルの調査にも使う）
+const models = await listAcpxModels({ agent: choice.id, cwd: "/path/to/project" });
+
+// あとは uniform-interface に、実行時の指定と合わせて渡す
 ```
 
-プロバイダを選んだ場合は、モデルを指定に入れる。モデルIDは、プロバイダのSDKから取得した一覧（後述）から選ぶか、利用者が指定する。モデルの生成に使うAPIキーは、このパッケージに保持させる。
+プロバイダを選んだ場合は、モデルの生成に使うAPIキーをこのパッケージに保持させる。モデルIDは、プロバイダのSDKから取得した一覧（後述）から選ぶか、利用者が指定する。
 
 ```ts
 import { createApiKeyStore, listProviderModels } from "provider-management";
@@ -46,19 +49,14 @@ const apiKeys = createApiKeyStore({
 
 // プロバイダのSDKでモデル一覧を取得する
 const models = await listProviderModels({ providerId: "openai", apiKeys });
-
-const option = findAgentOption("openai");
-if (option?.kind !== "provider") {
-  throw new Error("プロバイダが選ばれていない");
-}
-
-const apiKey = apiKeys.get(option.id);
 const modelId = models[0]?.id;
+
+const apiKey = apiKeys.get("openai");
 if (apiKey === undefined || modelId === undefined) {
   throw new Error("APIキーかモデルが用意されていない");
 }
 
-const selection = { ...option, model: createOpenAI({ apiKey })(modelId) } as const;
+const model = createOpenAI({ apiKey })(modelId);
 ```
 
 ## 公開API
@@ -67,12 +65,13 @@ const selection = { ...option, model: createOpenAI({ apiKey })(modelId) } as con
 | ----------------------------- | ------------------------------------------------------- |
 | `listAgentOptions()`          | 選択できるバックエンドの一覧を返す                      |
 | `findAgentOption(id)`         | IDに一致する選択肢を返す。該当がなければ`undefined`     |
+| `toAgentChoice(option)`       | 選択肢から、選択（種類とIDだけ）を取り出す              |
 | `listAcpxHarnesses()`         | ハーネスが利用できるかどうかを検出する                  |
 | `listAcpxModels(options)`     | ハーネス（acpx）が利用できるモデルの一覧を調べる        |
 | `listProviderModels(options)` | プロバイダが提供するモデルの一覧をそのSDKで取得する     |
 | `createApiKeyStore(apiKeys)`  | まとめて渡されたプロバイダのAPIキーを保持する場所を作る |
 
-選択肢の型（`ProviderOption` / `HarnessOption`）は一覧のデータから導出し、`id`は一覧にある文字列のリテラル型になる。一覧にないIDを指定するとコンパイル時に検出される。選択の型（`ProviderSelection` / `HarnessSelection` / `AgentSelection`）は、選択肢の型にそのバックエンドで必要な指定を加えたもの。
+選択肢の型（`ProviderOption` / `HarnessOption`）は一覧のデータから導出し、`id`は一覧にある文字列のリテラル型になる。一覧にないIDを指定するとコンパイル時に検出される。選択の型（`ProviderChoice` / `HarnessChoice` / `AgentChoice`）は、選択肢から種類とIDだけを取り出したもので、`kind`と`id`の対応も型で保たれる（ハーネスのIDをプロバイダとして選ぶとコンパイルエラーになる）。
 
 ### ハーネスの利用可否
 
@@ -130,7 +129,7 @@ acpxがエージェントを追加・改名した場合は、一覧の見直し�
 - ハーネスのモデル一覧を調べられるのは、acpxの組み込み名のハーネスだけ。ACPサーバを起動するコマンドを指定した場合は調べられない
 - ハーネスの利用可否は実行ファイルとローカルパッケージの有無で判断するため、認証の状態や、実行時に失敗するかどうかまでは分からない
 - 認証は保持したAPIキーを取り出せるだけで、モデルの生成にはまだ使わない。生成は利用者側が行う。ハーネスの認証はエージェント本体に委ねる
-- エージェントの生成と、チャット／エージェントの使い分けは扱わない
+- 選んだバックエンドをどう動かすか（作業ディレクトリ、モデル、権限、チャット／エージェントの使い分け）は扱わない
 
 ## 開発
 
