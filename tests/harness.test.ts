@@ -1,58 +1,32 @@
 import type { HarnessAgent, HarnessAgentSession } from "@ai-sdk/harness/agent";
-import { expect, expectTypeOf, test } from "vite-plus/test";
-import { AgentError, createHarnessAgent } from "../src/index.ts";
-import type {
-  AgentEvent,
-  HarnessAgentLike,
-  HarnessSandboxSession,
-  HarnessSessionLike,
-} from "../src/index.ts";
+import { beforeEach, expect, expectTypeOf, test, vi } from "vite-plus/test";
+import { createHarnessBackedAgent } from "../src/harness-agent.ts";
+import type { HarnessRuntime, HarnessRuntimeSession } from "../src/harness-agent.ts";
+import { AgentError } from "../src/index.ts";
+import type { AgentEvent } from "../src/index.ts";
 
-class FakeSandbox implements HarnessSandboxSession {
-  readonly description = "fake sandbox";
-  destroyed = false;
+const sandboxState = vi.hoisted(() => ({ created: 0, destroyed: 0 }));
 
-  destroy(): Promise<void> {
-    this.destroyed = true;
-    return Promise.resolve();
-  }
+vi.mock("@ai-sdk/sandbox-just-bash", () => ({
+  createJustBashNetworkSandboxSession: () => {
+    sandboxState.created += 1;
+    return Promise.resolve({
+      destroy: () => {
+        sandboxState.destroyed += 1;
+        return Promise.resolve();
+      },
+    });
+  },
+}));
 
-  readFile(): never {
-    throw new Error("FakeSandbox.readFile is not implemented.");
-  }
-
-  readBinaryFile(): never {
-    throw new Error("FakeSandbox.readBinaryFile is not implemented.");
-  }
-
-  readTextFile(): never {
-    throw new Error("FakeSandbox.readTextFile is not implemented.");
-  }
-
-  writeFile(): never {
-    throw new Error("FakeSandbox.writeFile is not implemented.");
-  }
-
-  writeBinaryFile(): never {
-    throw new Error("FakeSandbox.writeBinaryFile is not implemented.");
-  }
-
-  writeTextFile(): never {
-    throw new Error("FakeSandbox.writeTextFile is not implemented.");
-  }
-
-  spawn(): never {
-    throw new Error("FakeSandbox.spawn is not implemented.");
-  }
-
-  run(): never {
-    throw new Error("FakeSandbox.run is not implemented.");
-  }
-}
+beforeEach(() => {
+  sandboxState.created = 0;
+  sandboxState.destroyed = 0;
+});
 
 type StreamFactory = (prompt: string, session: FakeHarnessSession) => AsyncIterable<unknown>;
 
-class FakeHarnessSession implements HarnessSessionLike {
+class FakeHarnessSession implements HarnessRuntimeSession {
   readonly prompts: string[] = [];
   readonly #streamFactory: StreamFactory;
   unfinished = false;
@@ -78,12 +52,12 @@ class FakeHarnessSession implements HarnessSessionLike {
 }
 
 function createFakeHarness(streamFactory: StreamFactory): {
-  agent: HarnessAgentLike<FakeHarnessSession>;
+  runtime: HarnessRuntime<FakeHarnessSession>;
   sessions: FakeHarnessSession[];
 } {
   const sessions: FakeHarnessSession[] = [];
 
-  const agent: HarnessAgentLike<FakeHarnessSession> = {
+  const runtime: HarnessRuntime<FakeHarnessSession> = {
     createSession() {
       const session = new FakeHarnessSession(streamFactory);
       sessions.push(session);
@@ -94,22 +68,7 @@ function createFakeHarness(streamFactory: StreamFactory): {
     },
   };
 
-  return { agent, sessions };
-}
-
-function createSandboxFactory(): {
-  sandboxes: FakeSandbox[];
-  create: () => Promise<FakeSandbox>;
-} {
-  const sandboxes: FakeSandbox[] = [];
-  return {
-    sandboxes,
-    create() {
-      const sandbox = new FakeSandbox();
-      sandboxes.push(sandbox);
-      return Promise.resolve(sandbox);
-    },
-  };
+  return { runtime, sessions };
 }
 
 async function* streamParts(values: readonly unknown[]): AsyncGenerator<unknown> {
@@ -139,17 +98,13 @@ async function collect(events: AsyncIterable<AgentEvent>): Promise<AgentEvent[]>
   return collected;
 }
 
-test("HarnessAgent satisfies HarnessAgentLike", () => {
-  expectTypeOf<HarnessAgent>().toMatchTypeOf<HarnessAgentLike<HarnessAgentSession>>();
+test("HarnessAgent satisfies the internal runtime contract", () => {
+  expectTypeOf<HarnessAgent>().toMatchTypeOf<HarnessRuntime<HarnessAgentSession>>();
 });
 
 test("streams harness text deltas and a finish event", async () => {
   const harness = createFakeHarness(() => textTurn("Hello world"));
-  const sandbox = createSandboxFactory();
-  const agent = createHarnessAgent({
-    harnessAgent: harness.agent,
-    createSandboxSession: sandbox.create,
-  });
+  const agent = createHarnessBackedAgent(harness.runtime);
   const session = await agent.createSession();
 
   try {
@@ -164,21 +119,18 @@ test("streams harness text deltas and a finish event", async () => {
         text: "Hello world",
       },
     ]);
+    expect(sandboxState.created).toBe(1);
   } finally {
     await session.close();
   }
 
   expect(harness.sessions[0]?.prompts).toEqual(["Hi"]);
-  expect(sandbox.sandboxes).toHaveLength(1);
+  expect(sandboxState.destroyed).toBe(1);
 });
 
 test("keeps the harness session across turns", async () => {
   const harness = createFakeHarness((prompt) => textTurn(prompt));
-  const sandbox = createSandboxFactory();
-  const session = await createHarnessAgent({
-    harnessAgent: harness.agent,
-    createSandboxSession: sandbox.create,
-  }).createSession();
+  const session = await createHarnessBackedAgent(harness.runtime).createSession();
 
   try {
     await collect(session.send("first"));
@@ -199,11 +151,7 @@ test("fails when the harness turn is waiting for unsupported input", async () =>
       { type: "finish", finishReason: "tool-calls", totalUsage: {} },
     ]);
   });
-  const sandbox = createSandboxFactory();
-  const session = await createHarnessAgent({
-    harnessAgent: harness.agent,
-    createSandboxSession: sandbox.create,
-  }).createSession();
+  const session = await createHarnessBackedAgent(harness.runtime).createSession();
 
   try {
     await expect(collect(session.send("run a tool"))).rejects.toMatchObject({
@@ -217,17 +165,13 @@ test("fails when the harness turn is waiting for unsupported input", async () =>
 
 test("close destroys the harness session and the sandbox", async () => {
   const harness = createFakeHarness(() => textTurn("ok"));
-  const sandbox = createSandboxFactory();
-  const session = await createHarnessAgent({
-    harnessAgent: harness.agent,
-    createSandboxSession: sandbox.create,
-  }).createSession();
+  const session = await createHarnessBackedAgent(harness.runtime).createSession();
 
   await session.close();
   await session.close();
 
   expect(harness.sessions[0]?.destroyed).toBe(true);
-  expect(sandbox.sandboxes[0]?.destroyed).toBe(true);
+  expect(sandboxState.destroyed).toBe(1);
   expect(harness.sessions[0]?.prompts).toEqual([]);
 
   await expect(collect(session.send("hello"))).rejects.toMatchObject({
@@ -238,23 +182,18 @@ test("close destroys the harness session and the sandbox", async () => {
 
 test("rejects session instructions before creating a sandbox", async () => {
   const harness = createFakeHarness(() => textTurn("ok"));
-  const sandbox = createSandboxFactory();
-  const agent = createHarnessAgent({
-    harnessAgent: harness.agent,
-    createSandboxSession: sandbox.create,
-  });
+  const agent = createHarnessBackedAgent(harness.runtime);
 
   await expect(agent.createSession({ instructions: "be brief" })).rejects.toMatchObject({
     code: "option-unsupported",
     name: AgentError.name,
   });
-  expect(sandbox.sandboxes).toHaveLength(0);
+  expect(sandboxState.created).toBe(0);
   expect(harness.sessions).toHaveLength(0);
 });
 
 test("destroys the sandbox when harness session creation fails", async () => {
-  const sandbox = createSandboxFactory();
-  const failingAgent: HarnessAgentLike<HarnessSessionLike> = {
+  const failingRuntime: HarnessRuntime<HarnessRuntimeSession> = {
     createSession() {
       return Promise.reject(new Error("harness session failed"));
     },
@@ -263,13 +202,11 @@ test("destroys the sandbox when harness session creation fails", async () => {
     },
   };
 
-  const agent = createHarnessAgent({
-    harnessAgent: failingAgent,
-    createSandboxSession: sandbox.create,
-  });
+  const agent = createHarnessBackedAgent(failingRuntime);
 
   await expect(agent.createSession()).rejects.toThrow("harness session failed");
-  expect(sandbox.sandboxes[0]?.destroyed).toBe(true);
+  expect(sandboxState.created).toBe(1);
+  expect(sandboxState.destroyed).toBe(1);
 });
 
 test("rejects a second turn while the first turn is running", async () => {
@@ -285,11 +222,7 @@ test("rejects a second turn while the first turn is running", async () => {
       yield { type: "finish", finishReason: "stop", totalUsage: {} };
     })(),
   );
-  const sandbox = createSandboxFactory();
-  const session = await createHarnessAgent({
-    harnessAgent: harness.agent,
-    createSandboxSession: sandbox.create,
-  }).createSession();
+  const session = await createHarnessBackedAgent(harness.runtime).createSession();
   const iterator = session.send("first")[Symbol.asyncIterator]();
 
   try {

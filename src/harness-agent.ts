@@ -1,4 +1,4 @@
-import type { FinishReason } from "ai";
+import type { Experimental_SandboxSession, FinishReason } from "ai";
 import { AgentError } from "./errors.ts";
 import { isFinishReason, isRecord, toAgentUsage } from "./stream-parts.ts";
 import type {
@@ -6,28 +6,75 @@ import type {
   AgentEvent,
   AgentSession,
   AgentUsage,
-  HarnessAgentLike,
   HarnessAgentOptions,
-  HarnessSandboxSession,
-  HarnessSessionLike,
   SendOptions,
   SessionOptions,
 } from "./types.ts";
 
 /**
+ * アダプタが生成するsandbox sessionの契約。
+ *
+ * @internal
+ */
+type SandboxSession = Experimental_SandboxSession & {
+  readonly destroy: () => PromiseLike<void>;
+};
+
+/**
+ * アダプタが利用するHarnessAgentセッションの操作。
+ *
+ * @internal
+ */
+export interface HarnessRuntimeSession {
+  /** 承認待ちなどで、現在のターンが次の入力を待っているかを返す。 */
+  hasUnfinishedTurn(): boolean;
+
+  /** 実行中のターンを終了し、セッションを破棄する。 */
+  destroy(): PromiseLike<void>;
+}
+
+/**
+ * アダプタが利用するHarnessAgentの操作。
+ *
+ * `@ai-sdk/harness`の`HarnessAgent`がそのまま適合する。
+ *
+ * @internal
+ */
+export interface HarnessRuntime<TSession extends HarnessRuntimeSession = HarnessRuntimeSession> {
+  createSession(options: { readonly sandboxSession: SandboxSession }): PromiseLike<TSession>;
+
+  stream(options: {
+    readonly session: TSession;
+    readonly prompt: string;
+    readonly abortSignal?: AbortSignal;
+  }): PromiseLike<{ readonly stream: AsyncIterable<unknown> }>;
+}
+
+/**
  * HarnessAgentを公開APIのエージェントとして扱う。
  *
- * @param options - 使用するHarnessAgentと、セッションごとのsandbox生成処理。
+ * @param options - 使用するHarnessAgent。
  * @returns セッションを生成できるエージェント。
  * @throws `AgentError` — セッション固有の指示を渡した場合（`option-unsupported`）。
  * @remarks
- * セッションの生成時にsandboxを1つ生成し、{@link AgentSession.close}でHarnessAgentの
- * セッションとsandboxの両方を破棄する。
+ * セッションの生成時に`@ai-sdk/sandbox-just-bash`でsandboxを1つ生成し、
+ * {@link AgentSession.close}でHarnessAgentのセッションとsandboxの両方を破棄する。
  * ツール承認など、アダプタが扱わない入力待ちでターンが終了した場合は
  * `AgentError`（`turn-unfinished`）を投げる。
  */
-export function createHarnessAgent<TSession extends HarnessSessionLike>(
-  options: HarnessAgentOptions<TSession>,
+export function createHarnessAgent(options: HarnessAgentOptions): Agent {
+  return createHarnessBackedAgent(options.harnessAgent);
+}
+
+/**
+ * 任意のHarnessAgent互換ランタイムをエージェントとして扱う。
+ *
+ * 公開APIではなく、テストからHarnessAgentを差し替えるための入口。
+ *
+ * @internal
+ */
+export function createHarnessBackedAgent<TSession extends HarnessRuntimeSession>(
+  runtime: HarnessRuntime<TSession>,
 ): Agent {
   return {
     async createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
@@ -38,17 +85,18 @@ export function createHarnessAgent<TSession extends HarnessSessionLike>(
         );
       }
 
-      const sandboxSession = await options.createSandboxSession();
+      const { createJustBashNetworkSandboxSession } = await import("@ai-sdk/sandbox-just-bash");
+      const sandboxSession: SandboxSession = await createJustBashNetworkSandboxSession();
 
       let session: TSession;
       try {
-        session = await options.harnessAgent.createSession({ sandboxSession });
+        session = await runtime.createSession({ sandboxSession });
       } catch (error) {
         await destroySandboxIgnoringErrors(sandboxSession);
         throw error;
       }
 
-      return new HarnessBackedAgentSession(options.harnessAgent, session, sandboxSession);
+      return new HarnessBackedAgentSession(runtime, session, sandboxSession);
     },
   };
 }
@@ -58,21 +106,21 @@ export function createHarnessAgent<TSession extends HarnessSessionLike>(
  *
  * @internal
  */
-class HarnessBackedAgentSession<TSession extends HarnessSessionLike> implements AgentSession {
-  readonly #harnessAgent: HarnessAgentLike<TSession>;
+class HarnessBackedAgentSession<TSession extends HarnessRuntimeSession> implements AgentSession {
+  readonly #runtime: HarnessRuntime<TSession>;
   readonly #session: TSession;
-  readonly #sandboxSession: HarnessSandboxSession;
+  readonly #sandboxSession: SandboxSession;
   #active = false;
   #closed = false;
   #abortController: AbortController | undefined;
   #closing: Promise<void> | undefined;
 
   constructor(
-    harnessAgent: HarnessAgentLike<TSession>,
+    runtime: HarnessRuntime<TSession>,
     session: TSession,
-    sandboxSession: HarnessSandboxSession,
+    sandboxSession: SandboxSession,
   ) {
-    this.#harnessAgent = harnessAgent;
+    this.#runtime = runtime;
     this.#session = session;
     this.#sandboxSession = sandboxSession;
   }
@@ -122,7 +170,7 @@ class HarnessBackedAgentSession<TSession extends HarnessSessionLike> implements 
     let usage: AgentUsage = {};
 
     try {
-      const result = await this.#harnessAgent.stream({
+      const result = await this.#runtime.stream({
         session: this.#session,
         prompt: input,
         abortSignal: abortController.signal,
@@ -196,7 +244,7 @@ class HarnessBackedAgentSession<TSession extends HarnessSessionLike> implements 
   }
 }
 
-async function destroySandboxIgnoringErrors(sandboxSession: HarnessSandboxSession): Promise<void> {
+async function destroySandboxIgnoringErrors(sandboxSession: SandboxSession): Promise<void> {
   try {
     await sandboxSession.destroy();
   } catch {

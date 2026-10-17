@@ -26,10 +26,10 @@ pnpm add app-agent-adapter @ai-sdk/openai
 
 `ai` (Vercel AI SDK) は依存として自動的にインストールされる。モデルに応じて任意のAI SDKプロバイダを追加する。
 
-HarnessAgentを使う場合は、`@ai-sdk/harness` と、利用するハーネス／sandboxのアダプタを追加する。
+HarnessAgentを使う場合は、`@ai-sdk/harness` と、利用するハーネスのアダプタを追加する。sandboxはアダプタが `@ai-sdk/sandbox-just-bash` で内部生成する。
 
 ```bash
-pnpm add app-agent-adapter @ai-sdk/harness @ai-sdk/harness-pi @ai-sdk/sandbox-vercel
+pnpm add app-agent-adapter @ai-sdk/harness @ai-sdk/harness-pi
 ```
 
 ## 使い方
@@ -78,12 +78,11 @@ const session = await agent.createSession({
 
 ### HarnessAgent経由でコーディングエージェントを動かす
 
-HarnessAgentはsandbox sessionが必須なので、セッションごとにsandboxを生成するコールバックを渡す。sandboxの所有権はアダプタが引き取り、`session.close()` でセッションとsandboxの両方を破棄する。
+`sandbox`はアダプタが `@ai-sdk/sandbox-just-bash` でセッションごとに内部生成する。所有権もアダプタが持ち、`session.close()` でHarnessAgentのセッションとsandboxの両方を破棄する。現時点ではsandboxのオプションは公開せず、既定設定で生成する。
 
 ```ts
 import { HarnessAgent } from "@ai-sdk/harness/agent";
 import { pi } from "@ai-sdk/harness-pi";
-import { createVercelNetworkSandboxSession } from "@ai-sdk/sandbox-vercel";
 import { createHarnessAgent } from "app-agent-adapter";
 
 const harnessAgent = new HarnessAgent({
@@ -92,19 +91,7 @@ const harnessAgent = new HarnessAgent({
   instructions: "あなたはリポジトリを調査して修正するエージェントです。",
 });
 
-const agent = createHarnessAgent({
-  harnessAgent,
-  // sandboxの生成方法はアプリが選ぶ。返したsandboxはclose()で破棄される。
-  createSandboxSession: async () => {
-    const template = await harnessAgent.getSandboxTemplate();
-
-    return createVercelNetworkSandboxSession({
-      runtime: "node24",
-      ports: [4000],
-      template,
-    });
-  },
-});
+const agent = createHarnessAgent({ harnessAgent });
 
 const session = await agent.createSession();
 
@@ -187,6 +174,8 @@ interface AgentUsage {
 
 ## 現在の制約
 
+- sandboxは `@ai-sdk/sandbox-just-bash` の既定設定で生成する。just-bashはポートを公開できないため、ポート公開を必要とするブリッジ型ハーネス（Claude Code ACP、Codex ACPなど）には対応しない。ホストプロセスで動くハーネス（Pi、Cline、fxなど）を対象とする
+- sandboxのオプション（テンプレート、ランタイム、ポートなど）は公開していない
 - ツール実行のイベントは公開していない。HarnessAgentのツールが承認待ちになったターンは `turn-unfinished` エラーになる
 - 会話履歴はセッションのメモリ上にのみ存在し、永続化・復元はできない
 - セッションをまたいだ履歴の共有はできない
