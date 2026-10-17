@@ -1,38 +1,16 @@
-import type { FinishReason } from "ai";
 import type { AgentUsage } from "./types.ts";
 
 /**
  * 値がオブジェクトかどうかを判定する。
- *
- * @internal
  */
-export function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
 /**
- * 値がAI SDKの終了理由かどうかを判定する。
+ * バックエンドのusageから公開API用のトークン数を取り出す。
  *
- * @internal
- */
-export function isFinishReason(value: unknown): value is FinishReason {
-  switch (value) {
-    case "stop":
-    case "length":
-    case "content-filter":
-    case "tool-calls":
-    case "error":
-    case "other":
-      return true;
-    default:
-      return false;
-  }
-}
-
-/**
- * AI SDKのusageから公開API用のトークン数を取り出す。
- *
- * プロバイダが報告しない項目は省略する。
+ * 報告されない項目は省略する。
  *
  * @internal
  */

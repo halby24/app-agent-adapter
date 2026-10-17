@@ -5,13 +5,13 @@
 [Vercel AI SDK](https://ai-sdk.dev/) を土台に、アプリが扱いやすい小さなエージェントAPIを提供する。次の2種類のエージェントを同じ公開APIで扱える。
 
 - 言語モデルを直接呼び出すエージェント
-- 既存のコーディングエージェントを `HarnessAgent` 経由で動かすエージェント
+- ACP互換のコーディングエージェントを [acpx](https://github.com/openclaw/acpx) 経由で動かすエージェント
 
 ## できること
 
 - 1つのセッション内で複数ターンの会話を続ける（履歴はメモリ上に保持）
 - モデルのテキスト出力をイベントとして逐次受け取る
-- 利用者が用意したAI SDKのモデル、またはHarnessAgentをそのまま渡す
+- 利用者が用意したAI SDKのモデル、またはacpxが対応するコーディングエージェントを渡す
 - セッション単位・ターン単位の中断
 
 現時点では履歴の永続化には対応していない。
@@ -26,11 +26,7 @@ pnpm add app-agent-adapter @ai-sdk/openai
 
 `ai` (Vercel AI SDK) は依存として自動的にインストールされる。モデルに応じて任意のAI SDKプロバイダを追加する。
 
-HarnessAgentを使う場合は、`@ai-sdk/harness` と、利用するハーネスのアダプタを追加する。sandboxはアダプタが `@ai-sdk/sandbox-just-bash` で内部生成する。
-
-```bash
-pnpm add app-agent-adapter @ai-sdk/harness @ai-sdk/harness-pi
-```
+コーディングエージェントを動かす場合も追加のインストールは不要（`acpx` が依存として入る）。利用するエージェント本体（Claude Code、Codexなど）のインストールと認証は利用者が済ませておく。
 
 ## 使い方
 
@@ -76,22 +72,20 @@ const session = await agent.createSession({
 });
 ```
 
-### HarnessAgent経由でコーディングエージェントを動かす
+### acpx経由でコーディングエージェントを動かす
 
-`sandbox`はアダプタが `@ai-sdk/sandbox-just-bash` でセッションごとに内部生成する。所有権もアダプタが持ち、`session.close()` でHarnessAgentのセッションとsandboxの両方を破棄する。現時点ではsandboxのオプションは公開せず、既定設定で生成する。
+アダプタは `acpx` のin-processランタイムをセッションごとに内部生成し、`session.close()` でACP接続とランタイムを破棄する。会話履歴はアダプタが持つインメモリのセッションストアにのみ存在し、`~/.acpx` などには書き込まれない。
 
 ```ts
-import { HarnessAgent } from "@ai-sdk/harness/agent";
-import { pi } from "@ai-sdk/harness-pi";
-import { createHarnessAgent } from "app-agent-adapter";
+import { createAcpxAgent } from "app-agent-adapter";
 
-const harnessAgent = new HarnessAgent({
-  harness: pi,
-  model: "anthropic/claude-sonnet-4.6",
+const agent = createAcpxAgent({
+  agent: "claude",
+  cwd: "/path/to/project",
   instructions: "あなたはリポジトリを調査して修正するエージェントです。",
+  // 既定は "deny-all"。編集やコマンド実行を許す場合は明示する。
+  permissionMode: "approve-all",
 });
-
-const agent = createHarnessAgent({ harnessAgent });
 
 const session = await agent.createSession();
 
@@ -106,7 +100,7 @@ try {
 }
 ```
 
-HarnessAgentの指示やツール承認の設定は、`HarnessAgent` 側で行う。`createHarnessAgent()` はセッション固有の `instructions` を受け取らない（渡すと `AgentError` の `option-unsupported` になる）。
+`agent` にはacpxの組み込み名（`"claude"`、`"codex"`、`"pi"`、`"gemini"` など）か、ACPサーバを起動するコマンドを渡す。セッション固有の指示は `createSession({ instructions })` で上書きできる。
 
 ### 中断
 
@@ -127,15 +121,15 @@ controller.abort();
 
 ## 公開API
 
-| API                             | 説明                                           |
-| ------------------------------- | ---------------------------------------------- |
-| `createModelAgent(options)`     | 言語モデルを直接呼び出すエージェントを生成する |
-| `createHarnessAgent(options)`   | HarnessAgentをラップしたエージェントを生成する |
-| `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する     |
-| `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す       |
-| `session.close()`               | セッションを閉じ、進行中のターンを中断する     |
+| API                             | 説明                                                    |
+| ------------------------------- | ------------------------------------------------------- |
+| `createModelAgent(options)`     | 言語モデルを直接呼び出すエージェントを生成する          |
+| `createAcpxAgent(options)`      | acpx経由でACPエージェントを動かすエージェントを生成する |
+| `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する              |
+| `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す                |
+| `session.close()`               | セッションを閉じ、進行中のターンを中断する              |
 
-`send()` は `AsyncIterable<AgentEvent>` を返す。リクエストは反復を開始した時点で送信される。HarnessAgentの場合、セッションの会話履歴はハーネス側が保持する。
+`send()` は `AsyncIterable<AgentEvent>` を返す。リクエストは反復を開始した時点で送信される。acpxの場合、セッションの会話履歴はacpxのセッションが保持する。
 
 ### イベント
 
@@ -156,32 +150,30 @@ interface AgentUsage {
 }
 ```
 
-正常なターンでは `text-delta` が0個以上続いたあと、`finish` が1個届く。HarnessAgentが流すツール実行などのイベントは現時点では公開していない。
+正常なターンでは `text-delta` が0個以上続いたあと、`finish` が1個届く。エージェント内部のツール実行や思考過程は現時点では公開していない。
 
 ### エラー
 
 セッションの状態に起因する失敗は `AgentError` で通知される。
 
-| `code`                | 条件                                                             |
-| --------------------- | ---------------------------------------------------------------- |
-| `session-closed`      | 閉じたセッションに送信した                                       |
-| `session-busy`        | 前のターンが進行中に次のターンを送信した                         |
-| `turn-unfinished`     | ツール承認待ちなど、アダプタが扱わない入力待ちでターンが終わった |
-| `option-unsupported`  | 使用中のバックエンドが対応しない設定を渡した                     |
-| `invalid-stream-part` | バックエンドの出力イベントが想定した形を満たしていない           |
+| `code`           | 条件                                     |
+| ---------------- | ---------------------------------------- |
+| `session-closed` | 閉じたセッションに送信した               |
+| `session-busy`   | 前のターンが進行中に次のターンを送信した |
+| `turn-failed`    | エージェントがターンを失敗として終えた   |
 
-モデルやハーネス、プロバイダに起因する失敗は包まず、そのまま伝播する。
+モデルやエージェント、プロバイダに起因する失敗は、判別可能な場合は包まず、そのまま伝播する。`turn-failed` の `cause` にはエージェントが報告した詳細が入る。中断されたターンは `AbortError` として通知される。
 
 ## 現在の制約
 
-- sandboxは `@ai-sdk/sandbox-just-bash` の既定設定で生成する。just-bashはポートを公開できないため、ポート公開を必要とするブリッジ型ハーネス（Claude Code ACP、Codex ACPなど）には対応しない。ホストプロセスで動くハーネス（Pi、Cline、fxなど）を対象とする
-- sandboxのオプション（テンプレート、ランタイム、ポートなど）は公開していない
-- ツール実行のイベントは公開していない。HarnessAgentのツールが承認待ちになったターンは `turn-unfinished` エラーになる
-- 会話履歴はセッションのメモリ上にのみ存在し、永続化・復元はできない
+- acpxの権限モードの既定は `deny-all`。書き込みやコマンド実行を許すには `permissionMode` を明示する
+- ツール実行のイベントは公開していない。エージェント内部のツール呼び出しは `finish` に集約される
+- 思考過程（acpxの `stream: "thought"` の差分）は公開しない
+- 会話履歴はセッションのメモリ上にのみ存在し、永続化・復元はできない（acpxのセッションストアはアダプタがインメモリで持つ）
 - セッションをまたいだ履歴の共有はできない
-- HarnessAgentのセッション固有の指示には未対応
+- セッションごとにacpxのランタイムとエージェントプロセスを生成する
 
-サブスクリプション認証への対応は、同じ公開APIの裏側に追加していく予定。
+認証はエージェント本体（Claude Code、Codexなど）が担う。アダプタはacpx経由でそれをそのまま利用する。
 
 ## 開発
 

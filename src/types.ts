@@ -1,5 +1,15 @@
-import type { HarnessAgent } from "@ai-sdk/harness/agent";
 import type { FinishReason, LanguageModel } from "ai";
+
+/**
+ * エージェントが要求した操作（ファイル編集、コマンド実行など）をどう扱うか。
+ *
+ * acpxの権限モードと同じ値。
+ *
+ * - `approve-all`: すべての要求を自動承認する。
+ * - `approve-reads`: 読み取りは自動承認し、それ以外は承認しない。
+ * - `deny-all`: すべての要求を拒否する。エージェントは読み取り以外の操作ができない。
+ */
+export type AcpxPermissionMode = "approve-all" | "approve-reads" | "deny-all";
 
 /**
  * 言語モデルを直接呼び出すエージェントの構成。
@@ -27,7 +37,7 @@ export interface SessionOptions {
   /**
    * このセッションだけに適用するシステム指示。
    *
-   * @defaultValue 省略時は {@link ModelAgentOptions.instructions} を継承する。
+   * @defaultValue 省略時はエージェント生成時の指示を継承する。
    */
   readonly instructions?: string;
 }
@@ -142,14 +152,43 @@ export interface AgentSession {
 }
 
 /**
- * {@link createHarnessAgent}の設定。
+ * {@link createAcpxAgent}の設定。
  *
  * @remarks
- * 会話履歴は`harnessAgent`側が保持する。アダプタは履歴を複製しない。
- * sandboxはアダプタが`@ai-sdk/sandbox-just-bash`で既定設定により生成し、
- * セッション終了時に破棄する。
+ * 会話履歴はセッションのメモリ上にのみ存在し、永続化されない。
+ * acpxの組み込みエージェント名（`"claude"`、`"codex"`、`"pi"`など）か、
+ * ACPサーバを起動するコマンドを`agent`に渡す。エージェント本体の
+ * インストールと認証は利用者が済ませておく必要がある。
  */
-export interface HarnessAgentOptions {
-  /** 実行に使用するHarnessAgent。 */
-  readonly harnessAgent: HarnessAgent;
+export interface AcpxAgentOptions {
+  /**
+   * 起動するACPエージェント。
+   *
+   * acpxの組み込み名、またはACPサーバを起動するコマンド。
+   */
+  readonly agent: string;
+
+  /**
+   * セッションの作業ディレクトリ。
+   *
+   * エージェントはこのディレクトリを基準にファイルを扱う。
+   */
+  readonly cwd: string;
+
+  /**
+   * すべてのセッションに適用するシステム指示。
+   *
+   * @defaultValue 省略時はシステム指示を送信しない。
+   */
+  readonly instructions?: string;
+
+  /**
+   * エージェントが要求した操作の扱い。
+   *
+   * @defaultValue `"deny-all"`
+   * @remarks
+   * 既定ではすべての操作要求を拒否する。書き込みやコマンド実行を許す場合は
+   * `"approve-all"`などを明示する。
+   */
+  readonly permissionMode?: AcpxPermissionMode;
 }

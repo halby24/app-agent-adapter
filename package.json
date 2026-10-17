@@ -40,8 +40,7 @@
     "prepare": "vp config"
   },
   "dependencies": {
-    "@ai-sdk/harness": "^1.0.153",
-    "@ai-sdk/sandbox-just-bash": "^1.0.153",
+    "acpx": "^0.19.5",
     "ai": "^7.0.142"
   },
   "devDependencies": {
@@ -56,5 +55,8 @@
       "version": "12.14.0",
       "onFail": "download"
     }
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }

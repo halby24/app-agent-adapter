@@ -1,7 +1,7 @@
 allowBuilds:
-  # just-bashの任意依存。ネイティブビルドが不要な環境でも導入できるよう無効化する。
-  "@mongodb-js/zstd": false
-  node-liblzma: false
+  # acpxが依存するtsxのバンドラ。プラットフォーム別のバイナリは
+  # optionalDependenciesから解決するため、postinstallは実行しない。
+  esbuild: false
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.3.0
   vite-plus: 1.3.0

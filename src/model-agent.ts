@@ -9,7 +9,7 @@ import { ModelAgentSession } from "./session.ts";
  * @remarks
  * 生成したエージェントはツールを公開せず、モデルのテキスト出力だけを扱う。
  * セッションの会話履歴はメモリにのみ保持され、永続化されない。
- * 既存のコーディングエージェントを動かす場合は{@link createHarnessAgent}を使う。
+ * 既存のコーディングエージェントを動かす場合は{@link createAcpxAgent}を使う。
  */
 export function createModelAgent(options: ModelAgentOptions): Agent {
   return {
