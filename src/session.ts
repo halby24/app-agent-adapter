@@ -1,6 +1,7 @@
 import { streamText } from "ai";
 import type { LanguageModel, ModelMessage } from "ai";
 import { AgentError } from "./errors.ts";
+import { toAgentUsage } from "./stream-parts.ts";
 import type { AgentEvent, AgentSession, SendOptions } from "./types.ts";
 
 /**
@@ -68,7 +69,7 @@ export class ModelAgentSession implements AgentSession {
       }
 
       const finishReason = await result.finishReason;
-      const usage = await result.usage;
+      const usage = toAgentUsage(await result.usage);
 
       this.#messages.push(userMessage, { role: "assistant", content: text });
       completed = true;

@@ -179,6 +179,9 @@ importers:
         specifier: ^7.0.142
         version: 7.0.142(zod@4.6.7)
     devDependencies:
+      '@ai-sdk/harness':
+        specifier: ^1.0.153
+        version: 1.0.153(ws@8.22.0)(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -199,6 +202,16 @@ packages:
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/harness@1.0.153':
+    resolution: {integrity: sha512-uZMGVAVfGNFuzYxWlmsqYM/hnYZyMLGnspMkj3k62vZ0bzeRGIjTsnzx3aLW6UKBridRpXlDvHlDvKjwZ6A+8Q==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      ws: ^8.21.0
+      zod: ^3.25.76 || ^4.1.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
 
   '@ai-sdk/provider-utils@5.0.61':
     resolution: {integrity: sha512-Y+Z3539UXw0ctFDNepTtG23VqBQHr2A6yI2qUxvQcg75DJYgJoD2F9U2Vp5OgQjX7lxto1BLgFtKuOhzrr52vQ==}
@@ -1320,6 +1333,15 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.61(zod@4.6.7)
       '@vercel/oidc': 3.2.0
       zod: 4.6.7
+
+  '@ai-sdk/harness@1.0.153(ws@8.22.0)(zod@4.6.7)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.28
+      '@ai-sdk/provider-utils': 5.0.61(zod@4.6.7)
+      ai: 7.0.142(zod@4.6.7)
+      zod: 4.6.7
+    optionalDependencies:
+      ws: 8.22.0
 
   '@ai-sdk/provider-utils@5.0.61(zod@4.6.7)':
     dependencies:

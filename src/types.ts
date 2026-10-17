@@ -1,9 +1,9 @@
-import type { FinishReason, LanguageModel, LanguageModelUsage } from "ai";
+import type { Experimental_SandboxSession, FinishReason, LanguageModel } from "ai";
 
 /**
- * エージェントが使用する言語モデルと、全セッション共通の指示。
+ * 言語モデルを直接呼び出すエージェントの構成。
  */
-export interface AgentOptions {
+export interface ModelAgentOptions {
   /**
    * ターンの生成に使用する言語モデル。
    *
@@ -26,7 +26,7 @@ export interface SessionOptions {
   /**
    * このセッションだけに適用するシステム指示。
    *
-   * @defaultValue 省略時は {@link AgentOptions.instructions} を継承する。
+   * @defaultValue 省略時は {@link ModelAgentOptions.instructions} を継承する。
    */
   readonly instructions?: string;
 }
@@ -56,6 +56,18 @@ export interface TextDeltaEvent {
   readonly text: string;
 }
 
+/** 1ターンで使用したトークン数。 */
+export interface AgentUsage {
+  /** 入力トークン数。プロバイダが報告しない場合は省略される。 */
+  readonly inputTokens?: number;
+
+  /** 出力トークン数。プロバイダが報告しない場合は省略される。 */
+  readonly outputTokens?: number;
+
+  /** 入力と出力の合計トークン数。プロバイダが報告しない場合は省略される。 */
+  readonly totalTokens?: number;
+}
+
 /** 1ターンの完了を表すイベント。 */
 export interface FinishEvent {
   readonly type: "finish";
@@ -63,8 +75,8 @@ export interface FinishEvent {
   /** モデルが生成を終了した理由。 */
   readonly finishReason: FinishReason;
 
-  /** このターンで使用したトークン数。プロバイダが報告しない項目は`undefined`になる。 */
-  readonly usage: LanguageModelUsage;
+  /** このターンで使用したトークン数。 */
+  readonly usage: AgentUsage;
 
   /** このターンで生成されたテキスト全体。 */
   readonly text: string;
@@ -126,4 +138,89 @@ export interface AgentSession {
    * `AgentError`（`session-closed`）を投げる。
    */
   close(): Promise<void>;
+}
+
+/**
+ * HarnessAgentが利用するsandbox sessionの契約。
+ *
+ * `@ai-sdk/harness`のsandbox session（`@ai-sdk/sandbox-vercel`などが返すもの）がそのまま適合する。
+ * `{@link createHarnessAgent}`はセッション終了時に`destroy`を呼ぶ。
+ */
+export type HarnessSandboxSession = Experimental_SandboxSession & {
+  /**
+   * sandboxを停止し、後片付けを行う。
+   *
+   * @remarks
+   * 実行中か停止済みかを問わず呼べる必要がある。同じsandboxに対する複数回の呼び出しを
+   * 許容するかは実装に依存する。
+   */
+  readonly destroy: () => PromiseLike<void>;
+};
+
+/**
+ * HarnessAgentのセッションのうち、アダプタが利用する操作。
+ *
+ * `@ai-sdk/harness`の`HarnessAgentSession`がそのまま適合する。
+ */
+export interface HarnessSessionLike {
+  /** 承認待ちなどで、現在のターンが次の入力を待っているかを返す。 */
+  hasUnfinishedTurn(): boolean;
+
+  /** 実行中のターンを終了し、セッションを破棄する。 */
+  destroy(): PromiseLike<void>;
+}
+
+/**
+ * HarnessAgentのうち、アダプタが利用する操作。
+ *
+ * `@ai-sdk/harness`の`HarnessAgent`がそのまま適合する。テストなどで差し替えられるよう、
+ * 必要な操作だけを公開する。
+ *
+ * @typeParam TSession - `createSession`が返すセッションの型。
+ */
+export interface HarnessAgentLike<TSession extends HarnessSessionLike = HarnessSessionLike> {
+  /**
+   * Harnessのセッションを生成する。
+   *
+   * @param options - 実行に使用するsandbox session。所有権は呼び出し元に残る。
+   */
+  createSession(options: { readonly sandboxSession: HarnessSandboxSession }): PromiseLike<TSession>;
+
+  /**
+   * セッションに1ターン分の入力を送り、出力をストリームで返す。
+   *
+   * @param options - 対象セッション、入力、中断用シグナル。
+   * @returns `stream`プロパティにイベント列を持つオブジェクト。
+   * @remarks
+   * `stream`の各要素は`type`を持つオブジェクトとして扱い、`text-delta`、`finish`、
+   * `error`、`abort`以外は無視する。
+   */
+  stream(options: {
+    readonly session: TSession;
+    readonly prompt: string;
+    readonly abortSignal?: AbortSignal;
+  }): PromiseLike<{ readonly stream: AsyncIterable<unknown> }>;
+}
+
+/**
+ * {@link createHarnessAgent}の設定。
+ *
+ * @typeParam TSession - `harnessAgent`が返すセッションの型。
+ * @remarks
+ * 会話履歴は`harnessAgent`側が保持する。アダプタは履歴を複製しない。
+ */
+export interface HarnessAgentOptions<TSession extends HarnessSessionLike = HarnessSessionLike> {
+  /** 実行に使用するHarnessAgent。 */
+  readonly harnessAgent: HarnessAgentLike<TSession>;
+
+  /**
+   * セッションごとにsandboxを生成する。
+   *
+   * @returns 生成されたsandbox session。所有権はアダプタが引き取り、
+   * 対応する{@link AgentSession.close}で`destroy`される。
+   * @remarks
+   * `@ai-sdk/harness`の`HarnessAgent.getSandboxTemplate`を使う場合は、
+   * このコールバックの中で`sandboxConfig`とあわせて解決する。
+   */
+  readonly createSandboxSession: () => HarnessSandboxSession | PromiseLike<HarnessSandboxSession>;
 }

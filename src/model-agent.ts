@@ -1,4 +1,4 @@
-import type { Agent, AgentOptions, AgentSession, SessionOptions } from "./types.ts";
+import type { Agent, AgentSession, ModelAgentOptions, SessionOptions } from "./types.ts";
 import { ModelAgentSession } from "./session.ts";
 
 /**
@@ -9,8 +9,9 @@ import { ModelAgentSession } from "./session.ts";
  * @remarks
  * 生成したエージェントはツールを公開せず、モデルのテキスト出力だけを扱う。
  * セッションの会話履歴はメモリにのみ保持され、永続化されない。
+ * 既存のコーディングエージェントを動かす場合は{@link createHarnessAgent}を使う。
  */
-export function createAgent(options: AgentOptions): Agent {
+export function createModelAgent(options: ModelAgentOptions): Agent {
   return {
     createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
       const instructions = sessionOptions?.instructions ?? options.instructions;

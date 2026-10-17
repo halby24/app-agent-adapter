@@ -1,7 +1,7 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { expect, test } from "vite-plus/test";
 import type { AgentEvent } from "../src/index.ts";
-import { AgentError, createAgent } from "../src/index.ts";
+import { AgentError, createModelAgent } from "../src/index.ts";
 
 type MockCall = MockLanguageModelV4["doStreamCalls"][number];
 
@@ -79,7 +79,7 @@ function messageText(message: MockCall["prompt"][number]): string {
 
 test("streams text deltas followed by a finish event", async () => {
   const model = createTextModel(["Hello", ", world"]);
-  const session = await createAgent({ model }).createSession();
+  const session = await createModelAgent({ model }).createSession();
 
   try {
     const events = await collect(session.send("Hi"));
@@ -101,7 +101,7 @@ test("streams text deltas followed by a finish event", async () => {
 
 test("includes prior turns in the next model request", async () => {
   const model = createTextModel(["ok"]);
-  const session = await createAgent({ model }).createSession();
+  const session = await createModelAgent({ model }).createSession();
 
   try {
     await collect(session.send("first"));
@@ -119,7 +119,7 @@ test("includes prior turns in the next model request", async () => {
 
 test("session instructions override agent instructions", async () => {
   const model = createTextModel(["ok"]);
-  const agent = createAgent({ model, instructions: "agent instruction" });
+  const agent = createModelAgent({ model, instructions: "agent instruction" });
   const inherited = await agent.createSession();
   const overridden = await agent.createSession({ instructions: "session instruction" });
 
@@ -143,7 +143,7 @@ test("session instructions override agent instructions", async () => {
 
 test("rejects a second turn while the first turn is running", async () => {
   const { model, release } = createGatedModel();
-  const session = await createAgent({ model }).createSession();
+  const session = await createModelAgent({ model }).createSession();
   const iterator = session.send("first")[Symbol.asyncIterator]();
 
   try {
@@ -168,7 +168,7 @@ test("rejects a second turn while the first turn is running", async () => {
 
 test("rejects new turns after the session is closed", async () => {
   const model = createTextModel(["ok"]);
-  const session = await createAgent({ model }).createSession();
+  const session = await createModelAgent({ model }).createSession();
 
   await session.close();
   await session.close();
