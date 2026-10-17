@@ -23,3 +23,6 @@ peerDependencyRules:
     - vite
   allowedVersions:
     vite: "*"
+permissions:
+  acpx:
+    skills: true
