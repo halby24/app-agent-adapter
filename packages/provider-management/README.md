@@ -67,11 +67,34 @@ const selection = { ...option, model: createOpenAI({ apiKey })(modelId) } as con
 | ----------------------------- | ------------------------------------------------------- |
 | `listAgentOptions()`          | 選択できるバックエンドの一覧を返す                      |
 | `findAgentOption(id)`         | IDに一致する選択肢を返す。該当がなければ`undefined`     |
+| `listAcpxHarnesses()`         | ハーネスが利用できるかどうかを検出する                  |
 | `listAcpxModels(options)`     | ハーネス（acpx）が利用できるモデルの一覧を調べる        |
 | `listProviderModels(options)` | プロバイダが提供するモデルの一覧をそのSDKで取得する     |
 | `createApiKeyStore(apiKeys)`  | まとめて渡されたプロバイダのAPIキーを保持する場所を作る |
 
 選択肢の型（`ProviderOption` / `HarnessOption`）は一覧のデータから導出し、`id`は一覧にある文字列のリテラル型になる。一覧にないIDを指定するとコンパイル時に検出される。選択の型（`ProviderSelection` / `HarnessSelection` / `AgentSelection`）は、選択肢の型にそのバックエンドで必要な指定を加えたもの。
+
+### ハーネスの利用可否
+
+一覧にあるハーネスが実行できる状態かを検出できる。選択UIで使えるものだけを並べたり、印を付けたりするために使う。
+
+```ts
+import { listAcpxHarnesses } from "provider-management";
+
+for (const harness of listAcpxHarnesses()) {
+  console.log(harness.id, harness.name, harness.status);
+  // 例: opencode OpenCode installed
+  //     claude   Claude Code missing
+}
+```
+
+`status` は3つ。
+
+- `installed`: 実行に必要なものが見つかった
+- `missing`: 実行に必要なもの（実行ファイルや、npxで都度取得するパッケージ）が見つからない
+- `unknown`: acpxがこの方法では検出しない（実行のたびに取得するタイプなど）。未インストールとは限らない
+
+検出は `PATH` とローカルのパッケージを見るだけで、エージェントのプロセスは起動しない。**認証済みかどうかまでは分からない**ため、実際に使えるかどうかはセッションの生成で確かめる必要がある。`name` はacpxが定義する表示名（`"Claude Code"`など）で、名前が分からない場合はIDと同じ。
 
 ### プロバイダのモデル一覧
 
@@ -105,6 +128,7 @@ acpxがエージェントを追加・改名した場合は、一覧の見直し�
 - モデルの一覧を調べられるプロバイダは、`openai` / `anthropic` / `google` の3つ。それ以外はモデルIDを利用者が指定する
 - プロバイダのモデル一覧を取得するには、アプリが該当のSDKを依存に追加しておく必要がある
 - ハーネスのモデル一覧を調べられるのは、acpxの組み込み名のハーネスだけ。ACPサーバを起動するコマンドを指定した場合は調べられない
+- ハーネスの利用可否は実行ファイルとローカルパッケージの有無で判断するため、認証の状態や、実行時に失敗するかどうかまでは分からない
 - 認証は保持したAPIキーを取り出せるだけで、モデルの生成にはまだ使わない。生成は利用者側が行う。ハーネスの認証はエージェント本体に委ねる
 - エージェントの生成と、チャット／エージェントの使い分けは扱わない
 

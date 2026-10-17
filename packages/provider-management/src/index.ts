@@ -22,6 +22,8 @@ export { createApiKeyStore } from "./api-keys.ts";
 export type { ApiKeyStore, ApiKeys } from "./api-keys.ts";
 export { listAcpxModels } from "./acpx-models.ts";
 export type { AcpxModel, AcpxModelsOptions } from "./acpx-models.ts";
+export { listAcpxHarnesses } from "./acpx-harnesses.ts";
+export type { AcpxHarness, AcpxHarnessStatus } from "./acpx-harnesses.ts";
 export { listProviderModels } from "./provider-models.ts";
 export type { ProviderModel, ProviderModelsOptions } from "./provider-models.ts";
 export type { AgentSelection, HarnessSelection, ProviderSelection } from "./selection.ts";

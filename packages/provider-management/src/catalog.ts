@@ -110,6 +110,15 @@ function harnessOption(id: (typeof HARNESS_NAMES)[number]): {
 
 const HARNESSES = HARNESS_NAMES.map(harnessOption);
 
+/**
+ * 一覧にあるハーネスのID。
+ *
+ * パッケージの公開APIではなく、同じパッケージ内でハーネスを列挙するために使う。
+ *
+ * @internal
+ */
+export const HARNESS_IDS: readonly (typeof HARNESS_NAMES)[number][] = HARNESS_NAMES;
+
 /** 言語モデルを直接呼び出すプロバイダの選択肢。 */
 export type ProviderOption = (typeof PROVIDERS)[number];
 
