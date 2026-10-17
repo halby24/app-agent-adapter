@@ -164,6 +164,12 @@ settings:
 
 catalogs:
   default:
+    '@types/node':
+      specifier: ^26.6.5
+      version: 26.6.5
+    typescript:
+      specifier: ^7.0.2
+      version: 7.0.2
     vite-plus:
       specifier: 1.3.0
       version: 1.3.0
@@ -174,6 +180,18 @@ overrides:
 importers:
 
   .:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.3.0(@types/node@26.6.5)(@vitest/ui@5.0.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
+
+  packages/backend-adapter:
     dependencies:
       acpx:
         specifier: ^0.19.5
@@ -183,13 +201,13 @@ importers:
         version: 7.0.142(zod@4.6.7)
     devDependencies:
       '@types/node':
-        specifier: ^26.6.5
+        specifier: 'catalog:'
         version: 26.6.5
       bumpp:
         specifier: ^12.3.0
         version: 12.3.0
       typescript:
-        specifier: ^7.0.2
+        specifier: 'catalog:'
         version: 7.0.2
       vite-plus:
         specifier: 'catalog:'

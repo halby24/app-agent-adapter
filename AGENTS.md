@@ -10,9 +10,17 @@ Vercel AI SDKはやりたいことに近いが、クラウドサービス側で�
 「利用者自身のサブスクやAPIキーをアプリから呼んでAIエージェントとして使う」ための口としてのラッパーを作りたい
 裏がAPIキーであっても他ハーネスであっても統一的に扱えるようにしたい
 
+## リポジトリ構成
+
+pnpm workspaceのモノレポ。パッケージは `packages/` 配下に置く。
+
+- `packages/backend-adapter` — エージェントのバックエンドをアダプタして統一APIで扱うパッケージ
+
+ツールチェーンはVite+ (`vp`) に統一する。lint/fmt/type checkの設定はルートの `vite.config.ts` に集約し、パッケージ側の `vite.config.ts` にはビルド設定だけを置く。
+
 ## 構成
 
-- **エージェント向けアダプタ**
+- **`packages/backend-adapter`**
   - Vercel AI SDKをラップして設定が必要な項目だけ抽出
   - 以下のバックエンドに対応
     - APIキー直接

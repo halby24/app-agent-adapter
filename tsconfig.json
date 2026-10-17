@@ -5,7 +5,6 @@
     "moduleDetection": "force",
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "resolveJsonModule": true,
     "types": ["node"],
     "strict": true,
     "noUnusedLocals": true,
@@ -16,5 +15,6 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
-  }
+  },
+  "include": ["vite.config.ts"]
 }

@@ -1,52 +1,25 @@
 {
   "name": "app-agent-adapter",
   "version": "0.0.0",
-  "description": "A local-app-first AI agent adapter built on the Vercel AI SDK.",
-  "keywords": [
-    "agent",
-    "ai",
-    "ai-sdk",
-    "electrobun",
-    "electron"
-  ],
-  "homepage": "https://github.com/halby24/app-agent-adapter#readme",
-  "bugs": {
-    "url": "https://github.com/halby24/app-agent-adapter/issues"
-  },
+  "private": true,
+  "description": "A local-app-first AI agent adapter monorepo.",
   "license": "MIT",
   "author": "HALBY",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/halby24/app-agent-adapter.git"
   },
-  "files": [
-    "dist"
-  ],
   "type": "module",
-  "sideEffects": false,
-  "exports": {
-    ".": "./dist/index.mjs",
-    "./package.json": "./package.json"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
-    "build": "vp pack",
-    "dev": "vp pack --watch",
-    "test": "vp test",
+    "build": "vp run -r build",
+    "dev": "vp run -r dev",
+    "test": "vp run -r test",
     "check": "vp check",
-    "prepublishOnly": "vp run build",
     "prepare": "vp config"
   },
-  "dependencies": {
-    "acpx": "^0.19.5",
-    "ai": "^7.0.142"
-  },
   "devDependencies": {
-    "@types/node": "^26.6.5",
-    "bumpp": "^12.3.0",
-    "typescript": "^7.0.2",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
     "vite-plus": "catalog:"
   },
   "devEngines": {

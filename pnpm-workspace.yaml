@@ -1,8 +1,14 @@
+packages:
+  - packages/*
+
 allowBuilds:
   # acpxが依存するtsxのバンドラ。プラットフォーム別のバイナリは
   # optionalDependenciesから解決するため、postinstallは実行しない。
   esbuild: false
 catalog:
+  # パッケージ間で同じツールチェーンを使うため、バージョンはここで固定する。
+  "@types/node": ^26.6.5
+  typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@1.3.0
   vite-plus: 1.3.0
 minimumReleaseAgeExclude:
