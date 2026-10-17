@@ -1,21 +1,29 @@
 {
   "name": "app-agent-adapter",
   "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
-  "homepage": "https://github.com/author/library#readme",
+  "description": "A local-app-first AI agent adapter built on the Vercel AI SDK.",
+  "keywords": [
+    "agent",
+    "ai",
+    "ai-sdk",
+    "electrobun",
+    "electron"
+  ],
+  "homepage": "https://github.com/halby24/app-agent-adapter#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/halby24/app-agent-adapter/issues"
   },
   "license": "MIT",
-  "author": "Author Name <author.name@mail.com>",
+  "author": "HALBY",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/halby24/app-agent-adapter.git"
   },
   "files": [
     "dist"
   ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
@@ -30,6 +38,9 @@
     "check": "vp check",
     "prepublishOnly": "vp run build",
     "prepare": "vp config"
+  },
+  "dependencies": {
+    "ai": "^7.0.142"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
