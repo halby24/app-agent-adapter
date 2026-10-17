@@ -1,6 +1,7 @@
 import { createAgentRegistry } from "acpx/agent-registry";
 import type {
   AcpRuntime,
+  AcpRuntimeEvent,
   AcpRuntimeHandle,
   AcpRuntimeTurnResult,
   AcpSessionRecord,
@@ -10,7 +11,7 @@ import type {
 import { createAcpRuntime } from "acpx/runtime";
 import type { FinishReason } from "ai";
 import { AgentError } from "./errors.ts";
-import { toAgentUsage } from "./stream-parts.ts";
+import { toAgentUsage, toToolText } from "./stream-parts.ts";
 import type {
   AcpxAgent,
   AcpxAgentOptions,
@@ -19,6 +20,7 @@ import type {
   AgentSession,
   AgentUsage,
   SendOptions,
+  ToolKind,
 } from "./types.ts";
 
 /**
@@ -153,6 +155,9 @@ class AcpxAgentSession implements AgentSession {
     this.#active = true;
     const abortController = new AbortController();
     this.#abortController = abortController;
+    // ターン内で進行中のツール呼び出し。ACPのtool_callは状態遷移で届くため、
+    // IDごとに開始・途中経過・結果へ畳む。
+    const toolCalls = new Map<string, "open" | "closed">();
 
     const externalSignal = options?.abortSignal;
     const onAbort = () => abortController.abort(externalSignal?.reason);
@@ -180,14 +185,17 @@ class AcpxAgentSession implements AgentSession {
 
       for await (const part of turn.events) {
         if (part.type === "text_delta") {
-          // 思考過程はモデルの回答ではないため公開しない。
           if (part.stream === "thought") {
+            // 思考過程を表示するかどうかは利用側が決める。
+            yield { type: "reasoning-delta", text: part.text };
             continue;
           }
           text += part.text;
           yield { type: "text-delta", text: part.text };
         } else if (part.type === "status" && part.breakdown !== undefined) {
           usage = toAgentUsage(part.breakdown);
+        } else if (part.type === "tool_call") {
+          yield* toToolEvents(part, toolCalls);
         }
       }
 
@@ -202,6 +210,62 @@ class AcpxAgentSession implements AgentSession {
       this.#abortController = undefined;
       this.#active = false;
     }
+  }
+}
+
+/**
+ * ACPのツール分類を、公開APIの分類に対応させる。
+ */
+const TOOL_KINDS: Partial<Record<string, ToolKind>> = {
+  read: "read",
+  search: "search",
+  edit: "edit",
+  delete: "edit",
+  move: "edit",
+  execute: "execute",
+};
+
+/**
+ * ACPの`tool_call`イベントを、公開APIのツールのイベントに変換する。
+ *
+ * ACPは同じ呼び出しを状態遷移（`pending`から`completed`/`failed`まで）で繰り返し通知する。
+ * そのため、最初の通知を{@link ToolCallEvent}、終端を{@link ToolResultEvent}、それ以外で
+ * 内容が届いたものを{@link ToolCallUpdateEvent}として扱う。
+ *
+ * @remarks
+ * acpxがIDを報告しない場合はアダプタが生成する。この場合、以降の通知とは関連付かない。
+ */
+function* toToolEvents(
+  part: Extract<AcpRuntimeEvent, { type: "tool_call" }>,
+  toolCalls: Map<string, "open" | "closed">,
+): Generator<AgentEvent> {
+  const toolCallId = part.toolCallId ?? crypto.randomUUID();
+  const state = toolCalls.get(toolCallId);
+  if (state === "closed") {
+    // 終端のあとに届いた重複は無視する。
+    return;
+  }
+  if (state === undefined) {
+    toolCalls.set(toolCallId, "open");
+    yield {
+      type: "tool-call",
+      toolCallId,
+      ...(part.title === undefined ? {} : { title: part.title }),
+      ...(part.kind === undefined ? {} : { kind: TOOL_KINDS[part.kind] ?? "other" }),
+    };
+  }
+
+  const text = toToolText(part.content ?? part.rawOutput);
+  if (part.status === "completed" || part.status === "failed") {
+    toolCalls.set(toolCallId, "closed");
+    yield {
+      type: "tool-result",
+      toolCallId,
+      isError: part.status === "failed",
+      ...(text === undefined ? {} : { text }),
+    };
+  } else if (text !== undefined) {
+    yield { type: "tool-call-update", toolCallId, text };
   }
 }
 

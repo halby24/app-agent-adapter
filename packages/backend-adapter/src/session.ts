@@ -63,9 +63,17 @@ export class ModelAgentSession implements AgentSession {
         abortSignal: abortController.signal,
       });
 
-      for await (const delta of result.textStream) {
-        text += delta;
-        yield { type: "text-delta", text: delta };
+      for await (const part of result.fullStream) {
+        if (part.type === "text-delta") {
+          text += part.text;
+          yield { type: "text-delta", text: part.text };
+        } else if (part.type === "reasoning-delta") {
+          // 思考過程を表示するかどうかは利用側が決める。
+          yield { type: "reasoning-delta", text: part.text };
+        } else if (part.type === "error") {
+          // fullStreamは失敗をイベントとして流すため、例外として伝える。
+          throw part.error;
+        }
       }
 
       const finishReason = await result.finishReason;

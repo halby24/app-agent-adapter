@@ -18,6 +18,8 @@ const pi = vi.hoisted(() => ({
 interface TurnScript {
   deltas?: readonly string[];
   thinkingDeltas?: readonly string[];
+  /** ツール実行など、そのまま流すイベント。 */
+  events?: readonly unknown[];
   usage?: { input: number; output: number; totalTokens: number };
   stopReason?: string;
   errorMessage?: string;
@@ -53,6 +55,9 @@ class FakePiSession {
     }
     for (const delta of script.deltas ?? []) {
       this.#emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta } });
+    }
+    for (const event of script.events ?? []) {
+      this.#emit(event);
     }
     if (script.hold !== undefined) {
       await script.hold;
@@ -178,8 +183,8 @@ test("作業ディレクトリと操作の範囲を指定してセッション�
     cwd: "/project",
     // 会話履歴はディスクに残さない。
     sessionManager: { kind: "in-memory" },
-    // 操作をすべて許す場合は、書き込みとコマンド実行のツールも渡す。
-    tools: ["read", "bash", "edit", "write"],
+    // 操作をすべて許す場合は、読み取りに加えて書き込みとコマンド実行のツールも渡す。
+    tools: ["read", "grep", "find", "ls", "bash", "edit", "write"],
   });
   expect(pi.inMemoryCwd[0]).toBe("/project");
 });
@@ -285,7 +290,7 @@ test("バックエンドが扱わないモデルを指定すると失敗する",
   ).rejects.toThrow("PI does not know the model: anthropic/no-such-model");
 });
 
-test("テキスト差分を流し、最後にfinishを通知する", async () => {
+test("思考とテキストの差分を流し、最後にfinishを通知する", async () => {
   scripts = [
     [
       {
@@ -299,6 +304,7 @@ test("テキスト差分を流し、最後にfinishを通知する", async () =>
 
   try {
     await expect(collect(session.send("Hi"))).resolves.toEqual([
+      { type: "reasoning-delta", text: "考え中" },
       { type: "text-delta", text: "Hello " },
       { type: "text-delta", text: "world" },
       {
@@ -333,6 +339,94 @@ test("エージェントの停止理由をAI SDKの終了理由に変換する",
     } finally {
       await session.close();
     }
+  }
+});
+
+test("ツールの開始・途中経過・結果を通知する", async () => {
+  scripts = [
+    [
+      {
+        events: [
+          {
+            type: "tool_execution_start",
+            toolCallId: "call-1",
+            toolName: "bash",
+            args: { command: "ls" },
+          },
+          {
+            type: "tool_execution_update",
+            toolCallId: "call-1",
+            toolName: "bash",
+            args: {},
+            partialResult: { content: [{ type: "text", text: "partial" }], details: {} },
+          },
+          {
+            type: "tool_execution_end",
+            toolCallId: "call-1",
+            toolName: "bash",
+            result: { content: [{ type: "text", text: "done" }], details: {} },
+            isError: false,
+            durationMs: 12,
+          },
+        ],
+      },
+    ],
+  ];
+  const session = await createAgent({
+    cwd: "/project",
+    permissionMode: "approve-all",
+  }).createSession();
+
+  try {
+    await expect(collect(session.send("List the files"))).resolves.toEqual([
+      { type: "tool-call", toolCallId: "call-1", toolName: "bash", kind: "execute" },
+      { type: "tool-call-update", toolCallId: "call-1", text: "partial" },
+      { type: "tool-result", toolCallId: "call-1", isError: false, durationMs: 12, text: "done" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
+        text: "",
+      },
+    ]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("ツール名を公開APIの分類に対応させる", async () => {
+  const toolNames = ["read", "ls", "grep", "find", "edit", "write", "bash", "mystery"];
+  scripts = [
+    [
+      {
+        events: toolNames.map((toolName, index) => ({
+          type: "tool_execution_start",
+          toolCallId: `call-${index}`,
+          toolName,
+          args: {},
+        })),
+      },
+    ],
+  ];
+  const session = await createAgent({
+    cwd: "/project",
+    permissionMode: "approve-all",
+  }).createSession();
+
+  try {
+    const events = await collect(session.send("Do things"));
+    expect(events.slice(0, toolNames.length)).toEqual([
+      { type: "tool-call", toolCallId: "call-0", toolName: "read", kind: "read" },
+      { type: "tool-call", toolCallId: "call-1", toolName: "ls", kind: "read" },
+      { type: "tool-call", toolCallId: "call-2", toolName: "grep", kind: "search" },
+      { type: "tool-call", toolCallId: "call-3", toolName: "find", kind: "search" },
+      { type: "tool-call", toolCallId: "call-4", toolName: "edit", kind: "edit" },
+      { type: "tool-call", toolCallId: "call-5", toolName: "write", kind: "edit" },
+      { type: "tool-call", toolCallId: "call-6", toolName: "bash", kind: "execute" },
+      { type: "tool-call", toolCallId: "call-7", toolName: "mystery", kind: "other" },
+    ]);
+  } finally {
+    await session.close();
   }
 });
 

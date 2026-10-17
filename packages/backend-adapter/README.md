@@ -12,6 +12,8 @@
 
 - 1つのセッション内で複数ターンの会話を続ける（履歴はメモリ上に保持）
 - モデルのテキスト出力をイベントとして逐次受け取る
+- ツールの実行（開始・途中経過・結果）をイベントとして逐次受け取る
+- 思考（reasoning）の差分もイベントとして受け取る（表示するかは利用側が決める）
 - 利用者が用意したAI SDKのモデル、acpxが対応するコーディングエージェント、または内蔵のPI Coding Agentを渡す
 - セッション単位・ターン単位の中断
 
@@ -195,12 +197,24 @@ controller.abort();
 ```ts
 type AgentEvent =
   | { type: "text-delta"; text: string }
+  | { type: "reasoning-delta"; text: string }
+  | { type: "tool-call"; toolCallId: string; toolName?: string; title?: string; kind?: ToolKind }
+  | { type: "tool-call-update"; toolCallId: string; text: string }
+  | {
+      type: "tool-result";
+      toolCallId: string;
+      isError: boolean;
+      durationMs?: number;
+      text?: string;
+    }
   | {
       type: "finish";
       finishReason: FinishReason;
       usage: AgentUsage;
       text: string;
     };
+
+type ToolKind = "read" | "search" | "edit" | "execute" | "other";
 
 interface AgentUsage {
   inputTokens?: number;
@@ -209,7 +223,41 @@ interface AgentUsage {
 }
 ```
 
-正常なターンでは `text-delta` が0個以上続いたあと、`finish` が1個届く。エージェント内部のツール実行や思考過程は現時点では公開していない。
+正常なターンでは差分イベントが0個以上続いたあと、`finish` が1個届く。イベントの種類は将来増える可能性があるため、未知の `type` は無視して扱うこと。
+
+- **ツール実行**: PIとacpxでは、ツールの実行が `tool-call`（開始）、`tool-call-update`（途中経過）、`tool-result`（終了）として届く。同じ呼び出しは `toolCallId` で関連付ける。`toolName` はバックエンドが報告した名前のまま、`kind` は共通の分類（`ToolKind`）で、対応が分からないものは `"other"` になる
+- **思考**: 思考の差分は `reasoning-delta` として常に届く。表示するかどうかは利用側が決め、表示しない場合はこのイベントを無視する
+- **整形**: `tool-result` の `text` などは表示用に整形したテキストで、生のペイロードは公開しない。長い内容は切り詰める
+
+```ts
+const agent = createPiAgent({
+  cwd: "/path/to/project",
+  permissionMode: "approve-all",
+});
+
+const session = await agent.createSession();
+
+try {
+  for await (const event of session.send("失敗しているテストを直して")) {
+    switch (event.type) {
+      case "text-delta":
+        process.stdout.write(event.text);
+        break;
+      case "reasoning-delta":
+        process.stderr.write(event.text);
+        break;
+      case "tool-call":
+        console.log(`開始: ${event.title ?? event.toolName ?? event.toolCallId}`);
+        break;
+      case "tool-result":
+        console.log(`終了: ${event.toolCallId}${event.isError ? "（失敗）" : ""}`);
+        break;
+    }
+  }
+} finally {
+  await session.close();
+}
+```
 
 ### エラー
 
@@ -226,8 +274,9 @@ interface AgentUsage {
 ## 現在の制約
 
 - 権限モードの既定は `deny-all`。書き込みやコマンド実行を許すには `permissionMode` を明示する
-- ツール実行のイベントは公開していない。エージェント内部のツール呼び出しは `finish` に集約される
-- 思考過程（acpxの `stream: "thought"`、PIの思考差分）は公開しない
+- ツールの生の入出力（引数や結果のペイロード）は公開しない。`tool-result` の `text` は表示用に整形したテキストで、長い内容は切り詰める
+- ツール名と種類の語彙はバックエンドごとに異なる。`kind` は共通の分類だが、`toolName` はバックエンドが報告した名前のまま
+- 思考過程も `reasoning-delta` として常に届く（acpxの `stream: "thought"`、PIの思考差分）。表示しない場合は利用側で無視する
 - 会話履歴はセッションのメモリ上にのみ存在し、永続化・復元はできない（acpxのセッションストアとPIのセッションはアダプタがインメモリで持つ）
 - セッションをまたいだ履歴の共有はできない
 - acpx経由のエージェントは、セッションごとにacpxのランタイムとエージェントプロセスを生成する

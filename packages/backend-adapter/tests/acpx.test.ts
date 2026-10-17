@@ -117,7 +117,7 @@ test("テキスト差分を流し、最後にfinishを通知する", async () =>
   expect(fake.prompts[0]?.mode).toBe("prompt");
 });
 
-test("思考の差分は公開せず、statusイベントからusageを引き出す", async () => {
+test("思考の差分も流し、statusイベントからusageを引き出す", async () => {
   const fake = new FakeRuntime([
     {
       events: parts(
@@ -135,6 +135,7 @@ test("思考の差分は公開せず、statusイベントからusageを引き出
 
   try {
     await expect(collect(session.send("Hi"))).resolves.toEqual([
+      { type: "reasoning-delta", text: "thinking..." },
       { type: "text-delta", text: "answer" },
       {
         type: "finish",
@@ -142,6 +143,77 @@ test("思考の差分は公開せず、statusイベントからusageを引き出
         usage: { inputTokens: 5, outputTokens: 3, totalTokens: 8 },
         text: "answer",
       },
+    ]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("ツールの開始・途中経過・結果を通知し、終端後の重複は無視する", async () => {
+  const fake = new FakeRuntime([
+    {
+      events: parts(
+        {
+          type: "tool_call",
+          text: "",
+          toolCallId: "t1",
+          status: "pending",
+          title: "Read src/index.ts",
+          kind: "read",
+        },
+        {
+          type: "tool_call",
+          text: "",
+          toolCallId: "t1",
+          status: "in_progress",
+          content: [{ type: "content", content: { type: "text", text: "partial" } }],
+        },
+        {
+          type: "tool_call",
+          text: "",
+          toolCallId: "t1",
+          status: "completed",
+          content: [{ type: "content", content: { type: "text", text: "done" } }],
+        },
+        // 終端のあとに届いた重複は無視する。
+        { type: "tool_call", text: "", toolCallId: "t1", status: "completed" },
+      ),
+    },
+  ]);
+  const session = await fake.createAgent().createSession();
+
+  try {
+    await expect(collect(session.send("Read it"))).resolves.toEqual([
+      { type: "tool-call", toolCallId: "t1", title: "Read src/index.ts", kind: "read" },
+      { type: "tool-call-update", toolCallId: "t1", text: "partial" },
+      { type: "tool-result", toolCallId: "t1", isError: false, text: "done" },
+      { type: "finish", finishReason: "stop", usage: {}, text: "" },
+    ]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("失敗したツールはisErrorとして通知し、diffは場所だけを示す", async () => {
+  const fake = new FakeRuntime([
+    {
+      events: parts({
+        type: "tool_call",
+        text: "",
+        toolCallId: "t1",
+        status: "failed",
+        kind: "edit",
+        content: [{ type: "diff", path: "src/a.ts", oldText: "a", newText: "b" }],
+      }),
+    },
+  ]);
+  const session = await fake.createAgent().createSession();
+
+  try {
+    await expect(collect(session.send("Edit it"))).resolves.toEqual([
+      { type: "tool-call", toolCallId: "t1", kind: "edit" },
+      { type: "tool-result", toolCallId: "t1", isError: true, text: "[diff] src/a.ts" },
+      { type: "finish", finishReason: "stop", usage: {}, text: "" },
     ]);
   } finally {
     await session.close();

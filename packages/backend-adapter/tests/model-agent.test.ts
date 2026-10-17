@@ -62,6 +62,30 @@ function createGatedModel(): { model: MockLanguageModelV4; release: () => void }
   return { model, release };
 }
 
+function createReasoningModel(): MockLanguageModelV4 {
+  return new MockLanguageModelV4({
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "stream-start", warnings: [] });
+          controller.enqueue({ type: "reasoning-start", id: "reasoning-1" });
+          controller.enqueue({ type: "reasoning-delta", id: "reasoning-1", delta: "考え中" });
+          controller.enqueue({ type: "reasoning-end", id: "reasoning-1" });
+          controller.enqueue({ type: "text-start", id: "text-1" });
+          controller.enqueue({ type: "text-delta", id: "text-1", delta: "ok" });
+          controller.enqueue({ type: "text-end", id: "text-1" });
+          controller.enqueue({
+            type: "finish",
+            finishReason: { unified: "stop", raw: undefined },
+            usage,
+          });
+          controller.close();
+        },
+      }),
+    }),
+  });
+}
+
 async function collect(events: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const collected: AgentEvent[] = [];
   for await (const event of events) {
@@ -94,6 +118,47 @@ test("テキスト差分を流し、最後にfinishを通知する", async () =>
         text: "Hello, world",
       },
     ]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("思考の差分も流す", async () => {
+  const model = createReasoningModel();
+  const session = await createModelAgent({ model }).createSession();
+
+  try {
+    await expect(collect(session.send("Hi"))).resolves.toEqual([
+      { type: "reasoning-delta", text: "考え中" },
+      { type: "text-delta", text: "ok" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: expect.objectContaining({ inputTokens: 5, outputTokens: 3 }),
+        text: "ok",
+      },
+    ]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("ストリームの失敗を例外として通知する", async () => {
+  const model = new MockLanguageModelV4({
+    doStream: async () => ({
+      stream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: "stream-start", warnings: [] });
+          controller.enqueue({ type: "error", error: new Error("model exploded") });
+          controller.close();
+        },
+      }),
+    }),
+  });
+  const session = await createModelAgent({ model }).createSession();
+
+  try {
+    await expect(collect(session.send("Hi"))).rejects.toThrow("model exploded");
   } finally {
     await session.close();
   }

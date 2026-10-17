@@ -81,6 +81,80 @@ export interface TextDeltaEvent {
   readonly text: string;
 }
 
+/** モデルが生成した思考（reasoning）の断片。 */
+export interface ReasoningDeltaEvent {
+  readonly type: "reasoning-delta";
+
+  /**
+   * 直前の断片に続けて表示する思考のテキスト。
+   *
+   * @remarks
+   * 思考を表示するかどうかは利用側が決める。表示しない場合はこのイベントを無視する。
+   */
+  readonly text: string;
+}
+
+/**
+ * ツールが何をするかの分類。
+ *
+ * バックエンドごとにツール名や種類の語彙が異なるため、表示や絞り込みに使う共通の語彙。
+ */
+export type ToolKind = "read" | "search" | "edit" | "execute" | "other";
+
+/** ツールの実行が始まったことを表すイベント。 */
+export interface ToolCallEvent {
+  readonly type: "tool-call";
+
+  /**
+   * 同じツール呼び出しのイベントを関連付けるID。
+   *
+   * @remarks
+   * バックエンドがIDを報告しない場合は、アダプタが生成する。
+   */
+  readonly toolCallId: string;
+
+  /** エージェントが報告したツール名。報告しない場合は省略される。 */
+  readonly toolName?: string;
+
+  /** 表示用の説明（`Read src/index.ts`など）。報告しない場合は省略される。 */
+  readonly title?: string;
+
+  /** 何をするツールかの分類。報告しない場合は省略される。 */
+  readonly kind?: ToolKind;
+}
+
+/** 実行中のツールが途中経過を報告したことを表すイベント。 */
+export interface ToolCallUpdateEvent {
+  readonly type: "tool-call-update";
+
+  readonly toolCallId: string;
+
+  /** 途中経過の内容を整形したテキスト。 */
+  readonly text: string;
+}
+
+/** ツールの実行が終わったことを表すイベント。 */
+export interface ToolResultEvent {
+  readonly type: "tool-result";
+
+  readonly toolCallId: string;
+
+  /** ツールが失敗として終わったかどうか。 */
+  readonly isError: boolean;
+
+  /** 実行にかかった時間（ミリ秒）。報告しない場合は省略される。 */
+  readonly durationMs?: number;
+
+  /**
+   * 結果を整形したテキスト。
+   *
+   * @remarks
+   * 結果からテキストを取り出せない場合や、結果が空の場合は省略される。
+   * 生のペイロードは公開しないため、長い内容は切り詰められる。
+   */
+  readonly text?: string;
+}
+
 /** 1ターンで使用したトークン数。 */
 export interface AgentUsage {
   /** 入力トークン数。プロバイダが報告しない場合は省略される。 */
@@ -110,9 +184,20 @@ export interface FinishEvent {
 /**
  * {@link AgentSession.send}が返すイベント。
  *
- * `text-delta`が0個以上続いたあと、正常終了時は`finish`が1個届く。
+ * `text-delta`をはじめとする差分イベントが0個以上続いたあと、正常終了時は`finish`が1個届く。
+ * ツールの実行中は`tool-call`、`tool-call-update`、`tool-result`が届く。思考の`reasoning-delta`は
+ * 常に届くため、表示するかどうかは利用側が決める。
+ *
+ * @remarks
+ * イベントの種類は将来増える可能性がある。未知の`type`は無視して扱うこと。
  */
-export type AgentEvent = TextDeltaEvent | FinishEvent;
+export type AgentEvent =
+  | TextDeltaEvent
+  | ReasoningDeltaEvent
+  | ToolCallEvent
+  | ToolCallUpdateEvent
+  | ToolResultEvent
+  | FinishEvent;
 
 /**
  * エージェントの構成。

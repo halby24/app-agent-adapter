@@ -2,6 +2,7 @@ import type { FinishReason } from "ai";
 import { AgentError } from "./errors.ts";
 import { createIsolatedModelRuntime } from "./pi-runtime.ts";
 import type { PiModelRuntime } from "./pi-runtime.ts";
+import { toToolText } from "./stream-parts.ts";
 import type {
   AcpxPermissionMode,
   Agent,
@@ -12,6 +13,7 @@ import type {
   PiModelSelection,
   SendOptions,
   SessionOptions,
+  ToolKind,
 } from "./types.ts";
 
 /** 内蔵のPI Coding Agentのセッション。 */
@@ -26,16 +28,35 @@ type PiMessage = PiSession["messages"][number];
 /** PIのアシスタントメッセージ。 */
 type PiAssistantMessage = Extract<PiMessage, { role: "assistant" }>;
 
+/** 読み取りだけを行うツール。 */
+const READ_ONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
+
 /**
  * 操作の扱いごとに有効にするツール。
  *
  * acpxの権限モードに揃える。`deny-all`と`approve-reads`は読み取り以外を許可しないため、
  * 同じツール構成になる（PIのツールは実行時に許可を求めるのではなく、渡したものだけが使える）。
+ * `approve-all`は読み取りのツールに、書き込みとコマンド実行のツールを加える。
  */
 const TOOLS_BY_PERMISSION: Record<AcpxPermissionMode, readonly string[]> = {
-  "deny-all": ["read", "grep", "find", "ls"],
-  "approve-reads": ["read", "grep", "find", "ls"],
-  "approve-all": ["read", "bash", "edit", "write"],
+  "deny-all": READ_ONLY_TOOLS,
+  "approve-reads": READ_ONLY_TOOLS,
+  "approve-all": [...READ_ONLY_TOOLS, "bash", "edit", "write"],
+};
+
+/**
+ * PIのツール名を、公開APIの分類に対応させる。
+ *
+ * PIが持つツール以外（拡張やMCPのツール）は`"other"`として扱う。
+ */
+const TOOL_KINDS: Record<string, ToolKind> = {
+  read: "read",
+  ls: "read",
+  grep: "search",
+  find: "search",
+  edit: "edit",
+  write: "edit",
+  bash: "execute",
 };
 
 /**
@@ -154,14 +175,47 @@ class PiAgentSession implements AgentSession {
     }
 
     this.#active = true;
-    const deltas = new AsyncQueue<string>();
+    const events = new AsyncQueue<AgentEvent>();
     const unsubscribe = this.#session.subscribe((event) => {
-      if (event.type !== "message_update") {
-        return;
-      }
-      // 思考過程はモデルの回答ではないため公開しない。
-      if (event.assistantMessageEvent.type === "text_delta") {
-        deltas.push(event.assistantMessageEvent.delta);
+      switch (event.type) {
+        case "message_update": {
+          const update = event.assistantMessageEvent;
+          if (update.type === "text_delta") {
+            events.push({ type: "text-delta", text: update.delta });
+          } else if (update.type === "thinking_delta") {
+            // 思考過程を表示するかどうかは利用側が決める。
+            events.push({ type: "reasoning-delta", text: update.delta });
+          }
+          return;
+        }
+        case "tool_execution_start":
+          events.push({
+            type: "tool-call",
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            kind: TOOL_KINDS[event.toolName] ?? "other",
+          });
+          return;
+        case "tool_execution_update": {
+          const text = toToolText(event.partialResult);
+          if (text !== undefined) {
+            events.push({ type: "tool-call-update", toolCallId: event.toolCallId, text });
+          }
+          return;
+        }
+        case "tool_execution_end": {
+          const text = toToolText(event.result);
+          events.push({
+            type: "tool-result",
+            toolCallId: event.toolCallId,
+            isError: event.isError,
+            durationMs: event.durationMs,
+            ...(text === undefined ? {} : { text }),
+          });
+          return;
+        }
+        default:
+          return;
       }
     });
 
@@ -181,13 +235,15 @@ class PiAgentSession implements AgentSession {
       // 未処理の拒否を残さないよう、先に握っておく。
       run.catch(() => {});
       run.then(
-        () => deltas.close(),
-        () => deltas.close(),
+        () => events.close(),
+        () => events.close(),
       );
 
-      for await (const delta of deltas.iterate()) {
-        text += delta;
-        yield { type: "text-delta", text: delta };
+      for await (const event of events.iterate()) {
+        if (event.type === "text-delta") {
+          text += event.text;
+        }
+        yield event;
       }
       await run;
 
@@ -211,7 +267,7 @@ class PiAgentSession implements AgentSession {
         text,
       };
     } finally {
-      deltas.close();
+      events.close();
       unsubscribe();
       externalSignal?.removeEventListener("abort", abort);
       this.#active = false;

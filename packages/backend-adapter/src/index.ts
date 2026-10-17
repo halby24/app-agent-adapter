@@ -31,7 +31,12 @@ export type {
   PiModel,
   PiModelSelection,
   PiModelsOptions,
+  ReasoningDeltaEvent,
   SendOptions,
   SessionOptions,
   TextDeltaEvent,
+  ToolCallEvent,
+  ToolCallUpdateEvent,
+  ToolKind,
+  ToolResultEvent,
 } from "./types.ts";
