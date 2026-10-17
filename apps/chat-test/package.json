@@ -1,0 +1,29 @@
+{
+  "name": "chat-test",
+  "version": "0.0.0",
+  "private": true,
+  "description": "選んだバックエンドのチャットを手元で試すためのElectrobunアプリ。",
+  "license": "MIT",
+  "author": "HALBY",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/halby24/app-agent-adapter.git",
+    "directory": "apps/chat-test"
+  },
+  "type": "module",
+  "scripts": {
+    "devkit": "electrobun prepare",
+    "start": "electrobun dev --watch",
+    "typecheck": "electrobun prepare && tsc --noEmit",
+    "bundle": "electrobun build --env=stable"
+  },
+  "dependencies": {
+    "provider-management": "workspace:*",
+    "uniform-interface": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "electrobun": "2.0.2",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Chat Test</title>
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <header class="controls">
+      <label class="field">
+        <span>バックエンド</span>
+        <select id="backend"></select>
+      </label>
+      <label class="field">
+        <span>モデル</span>
+        <select id="model"></select>
+        <input id="model-input" placeholder="モデルID" autocomplete="off" hidden />
+      </label>
+      <label class="field">
+        <span>APIキー</span>
+        <input
+          id="api-key"
+          type="password"
+          placeholder="環境変数から読む場合は空欄"
+          autocomplete="off"
+        />
+      </label>
+      <div class="buttons">
+        <button id="open" type="button">セッション開始</button>
+        <button id="close" type="button" disabled>セッション終了</button>
+      </div>
+      <label class="field wide">
+        <span>システム指示</span>
+        <textarea id="instructions" rows="2" placeholder="省略可"></textarea>
+      </label>
+    </header>
+
+    <main id="log" class="log" aria-live="polite"></main>
+
+    <footer class="composer">
+      <textarea
+        id="input"
+        rows="2"
+        placeholder="メッセージ（Enterで送信 / Shift+Enterで改行）"
+        disabled
+      ></textarea>
+      <div class="actions">
+        <button id="cancel" type="button" disabled>中断</button>
+        <button id="send" type="button" disabled>送信</button>
+      </div>
+    </footer>
+
+    <script src="index.js" type="module"></script>
+  </body>
+</html>

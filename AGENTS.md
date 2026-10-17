@@ -12,7 +12,7 @@ Vercel AI SDKはやりたいことに近いが、クラウドサービス側で�
 
 ## リポジトリ構成
 
-pnpm workspaceのモノレポ。パッケージは `packages/` 配下に置く。
+pnpm workspaceのモノレポ。公開するパッケージは `packages/` 配下、動かして確かめるサンプルアプリは `apps/` 配下に置く。
 
 - `packages/backend-adapter` — エージェントのバックエンドをアダプタして統一APIで扱うパッケージ
 - `packages/provider-management` — 利用できるプロバイダやハーネス、そのモデルを管理するパッケージ
@@ -40,7 +40,7 @@ pnpm workspaceのモノレポ。パッケージは `packages/` 配下に置く�
       - tool useあり、作業ディレクトリ指定ファイル読み書きありのエージェント向けセッションが動作する
       - API backendでは内蔵PI Coding Agentを利用してハーネスを動作させる
 - **認証とチャットのサンプルUI**
-  - 作成予定
+  - `apps/chat-test` — Electrobun 2系の簡易アプリ。メインプロセスはBunで動かし、バックエンドとモデルを選んでチャットの1ターンを試せる
 
 ## ADR
 

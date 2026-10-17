@@ -1,0 +1,5 @@
+# Hutchが生成するdevkitとビルド成果物。
+.hutch/
+build/
+artifacts/
+.cottontail-tmp/
