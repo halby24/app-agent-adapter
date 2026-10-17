@@ -5,6 +5,10 @@ allowBuilds:
   # acpxが依存するtsxのバンドラ。プラットフォーム別のバイナリは
   # optionalDependenciesから解決するため、postinstallは実行しない。
   esbuild: false
+  # モデル一覧の取得に使う@google/genai（と依存のprotobufjs）のpostinstall。
+  # 配布物に含まれるビルド済みのコードを使うため実行しない。
+  "@google/genai": false
+  protobufjs: false
 catalog:
   # パッケージ間で同じツールチェーンを使うため、バージョンはここで固定する。
   "@types/node": ^26.6.5
@@ -22,6 +26,7 @@ minimumReleaseAgeExclude:
   - "@voidzero-dev/vite-plus-win32-arm64-msvc@1.3.0"
   - "@voidzero-dev/vite-plus-win32-x64-msvc@1.3.0"
   - vite-plus@1.3.0
+  - openai@7.36.0
 overrides:
   vite@*: "catalog:"
 peerDependencyRules:

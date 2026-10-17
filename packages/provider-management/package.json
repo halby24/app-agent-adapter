@@ -46,10 +46,29 @@
     "backend-adapter": "workspace:*"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@google/genai": "^2.30.0",
     "@types/node": "catalog:",
     "bumpp": "^12.3.0",
+    "openai": "^7.36.0",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@google/genai": "^2.30.0",
+    "openai": "^7.36.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
+    "@google/genai": {
+      "optional": true
+    },
+    "openai": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22.13.0"

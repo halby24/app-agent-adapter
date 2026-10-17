@@ -33,10 +33,10 @@ const selection = {
 // あとは uniform-interface の createAgent に渡す
 ```
 
-プロバイダを選んだ場合は、モデル（AI SDKのプロバイダから取得したもの）を指定に入れる。モデルの生成に使うAPIキーは、このパッケージに保持させる。
+プロバイダを選んだ場合は、モデルを指定に入れる。モデルIDは、プロバイダのSDKから取得した一覧（後述）から選ぶか、利用者が指定する。モデルの生成に使うAPIキーは、このパッケージに保持させる。
 
 ```ts
-import { createApiKeyStore, findAgentOption } from "provider-management";
+import { createApiKeyStore, listProviderModels } from "provider-management";
 
 // キーの取得（環境変数、キーチェーン、利用者による入力など）は利用者側の責務
 const apiKeys = createApiKeyStore({
@@ -44,29 +44,46 @@ const apiKeys = createApiKeyStore({
   anthropic: process.env.ANTHROPIC_API_KEY,
 });
 
+// プロバイダのSDKでモデル一覧を取得する
+const models = await listProviderModels({ providerId: "openai", apiKeys });
+
 const option = findAgentOption("openai");
 if (option?.kind !== "provider") {
   throw new Error("プロバイダが選ばれていない");
 }
 
 const apiKey = apiKeys.get(option.id);
-if (apiKey === undefined) {
-  throw new Error("APIキーが設定されていない");
+const modelId = models[0]?.id;
+if (apiKey === undefined || modelId === undefined) {
+  throw new Error("APIキーかモデルが用意されていない");
 }
 
-const selection = { ...option, model: createOpenAI({ apiKey })("gpt-5.4-mini") } as const;
+const selection = { ...option, model: createOpenAI({ apiKey })(modelId) } as const;
 ```
 
 ## 公開API
 
-| API                          | 説明                                                    |
-| ---------------------------- | ------------------------------------------------------- |
-| `listAgentOptions()`         | 選択できるバックエンドの一覧を返す                      |
-| `findAgentOption(id)`        | IDに一致する選択肢を返す。該当がなければ`undefined`     |
-| `listAcpxModels(options)`    | ハーネス（acpx）が利用できるモデルの一覧を調べる        |
-| `createApiKeyStore(apiKeys)` | まとめて渡されたプロバイダのAPIキーを保持する場所を作る |
+| API                           | 説明                                                    |
+| ----------------------------- | ------------------------------------------------------- |
+| `listAgentOptions()`          | 選択できるバックエンドの一覧を返す                      |
+| `findAgentOption(id)`         | IDに一致する選択肢を返す。該当がなければ`undefined`     |
+| `listAcpxModels(options)`     | ハーネス（acpx）が利用できるモデルの一覧を調べる        |
+| `listProviderModels(options)` | プロバイダが提供するモデルの一覧をそのSDKで取得する     |
+| `createApiKeyStore(apiKeys)`  | まとめて渡されたプロバイダのAPIキーを保持する場所を作る |
 
 選択肢の型（`ProviderOption` / `HarnessOption`）は一覧のデータから導出し、`id`は一覧にある文字列のリテラル型になる。一覧にないIDを指定するとコンパイル時に検出される。選択の型（`ProviderSelection` / `HarnessSelection` / `AgentSelection`）は、選択肢の型にそのバックエンドで必要な指定を加えたもの。
+
+### プロバイダのモデル一覧
+
+プロバイダのモデル一覧は、そのプロバイダの公式SDKを利用時に読み込んで取得する。対応しているのは次の3つ。
+
+| プロバイダ  | 使うSDK             | モデル名                          |
+| ----------- | ------------------- | --------------------------------- |
+| `openai`    | `openai`            | SDKが返すIDをそのまま使う         |
+| `anthropic` | `@anthropic-ai/sdk` | SDKが返す表示名を`name`に入れる   |
+| `google`    | `@google/genai`     | `models/`の接頭辞を除いたIDを返す |
+
+このパッケージはSDKを依存に持たない。アプリが、使うプロバイダのSDKを自身の依存に追加しておく（読み込めない場合は追加を促すエラーになる）。対応していないプロバイダでは、モデルIDを利用者が指定する。
 
 ### APIキーの保持
 
@@ -85,9 +102,10 @@ acpxがエージェントを追加・改名した場合は、一覧の見直し�
 
 ## 現在の制約
 
-- モデルの一覧を調べられるのは、acpxの組み込み名のハーネスだけ。ACPサーバを起動するコマンドを指定した場合は調べられない
-- プロバイダのモデル一覧は扱わない。モデルはAI SDKのプロバイダから取得する
-- 認証の管理は未実装。保持したAPIキーはまだモデルの生成に使わず、生成は利用者側が行う。ハーネスの認証はエージェント本体に委ねる
+- モデルの一覧を調べられるプロバイダは、`openai` / `anthropic` / `google` の3つ。それ以外はモデルIDを利用者が指定する
+- プロバイダのモデル一覧を取得するには、アプリが該当のSDKを依存に追加しておく必要がある
+- ハーネスのモデル一覧を調べられるのは、acpxの組み込み名のハーネスだけ。ACPサーバを起動するコマンドを指定した場合は調べられない
+- 認証は保持したAPIキーを取り出せるだけで、モデルの生成にはまだ使わない。生成は利用者側が行う。ハーネスの認証はエージェント本体に委ねる
 - エージェントの生成と、チャット／エージェントの使い分けは扱わない
 
 ## 開発
