@@ -19,8 +19,9 @@ function providerOption<const Id extends string>(entry: {
 /**
  * 組み込みのプロバイダ。
  *
- * AI SDKの公式プロバイダのうち、言語モデルを提供するものを列挙する。
- * 画像・音声・動画だけのプロバイダは対象外とする。
+ * AI SDKの公式プロバイダのうち、言語モデルを提供し、かつ内蔵のコーディングエージェント
+ * （PI Coding Agent）でも使えるものを列挙する。画像・音声・動画だけのプロバイダと、
+ * コーディングエージェントで使えないプロバイダは対象外とする。
  * モデルの生成（＝APIキーなどの認証）はアプリ側の責務なので、選択に必要な
  * AI SDKパッケージ名だけを持ち、パッケージ自体には依存しない。
  * この一覧がIDの正本であり、公開する型はここから導出する。
@@ -29,34 +30,14 @@ const PROVIDERS = [
   providerOption({ id: "openai", label: "OpenAI", package: "@ai-sdk/openai" }),
   providerOption({ id: "anthropic", label: "Anthropic", package: "@ai-sdk/anthropic" }),
   providerOption({ id: "google", label: "Google", package: "@ai-sdk/google" }),
-  providerOption({
-    id: "google-vertex",
-    label: "Google Vertex AI",
-    package: "@ai-sdk/google-vertex",
-  }),
-  providerOption({
-    id: "amazon-bedrock",
-    label: "Amazon Bedrock",
-    package: "@ai-sdk/amazon-bedrock",
-  }),
-  providerOption({ id: "azure", label: "Azure OpenAI", package: "@ai-sdk/azure" }),
   providerOption({ id: "xai", label: "xAI", package: "@ai-sdk/xai" }),
   providerOption({ id: "mistral", label: "Mistral", package: "@ai-sdk/mistral" }),
   providerOption({ id: "groq", label: "Groq", package: "@ai-sdk/groq" }),
   providerOption({ id: "deepseek", label: "DeepSeek", package: "@ai-sdk/deepseek" }),
   providerOption({ id: "cerebras", label: "Cerebras", package: "@ai-sdk/cerebras" }),
-  providerOption({ id: "cohere", label: "Cohere", package: "@ai-sdk/cohere" }),
   providerOption({ id: "togetherai", label: "Together AI", package: "@ai-sdk/togetherai" }),
   providerOption({ id: "fireworks", label: "Fireworks AI", package: "@ai-sdk/fireworks" }),
-  providerOption({ id: "deepinfra", label: "DeepInfra", package: "@ai-sdk/deepinfra" }),
-  providerOption({ id: "perplexity", label: "Perplexity", package: "@ai-sdk/perplexity" }),
-  providerOption({ id: "alibaba", label: "Alibaba", package: "@ai-sdk/alibaba" }),
   providerOption({ id: "moonshotai", label: "Moonshot AI", package: "@ai-sdk/moonshotai" }),
-  providerOption({
-    id: "openai-compatible",
-    label: "OpenAI Compatible",
-    package: "@ai-sdk/openai-compatible",
-  }),
 ];
 
 /**

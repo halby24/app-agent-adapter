@@ -237,12 +237,19 @@ export interface AcpxAgent extends Agent {
  * {@link createPiAgent}の設定。
  *
  * @remarks
- * 内蔵のPI Coding Agentをプロセス内で動かす。エージェント本体のインストールは不要で、
- * モデルとその認証はPI側の設定（`~/.pi/agent`など）に従う。
+ * 内蔵のPI Coding Agentをプロセス内で動かす。エージェント本体のインストールは不要。
+ * モデルとその認証は、{@link PiAgentOptions.model}で指定しない限りPI側の設定（`~/.pi/agent`）に従う。
  */
 export interface PiAgentOptions {
   /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
   readonly cwd: string;
+
+  /**
+   * 使うモデルとその認証。
+   *
+   * @defaultValue 省略時はPIの設定に従う。
+   */
+  readonly model?: PiModelSelection;
 
   /**
    * すべてのセッションに適用するシステム指示。
@@ -262,4 +269,51 @@ export interface PiAgentOptions {
    * 読み取り以外のツール（書き込み、コマンド実行）を渡さないため、結果は同じになる。
    */
   readonly permissionMode?: AcpxPermissionMode;
+}
+
+/**
+ * PIで使うモデルと、その認証。
+ */
+export interface PiModelSelection {
+  /**
+   * プロバイダのID。
+   *
+   * PIが扱うプロバイダ名（`"anthropic"`、`"together"`など）を指定する。
+   */
+  readonly provider: string;
+
+  /** プロバイダのモデルID。{@link listPiModels}で調べられる。 */
+  readonly id: string;
+
+  /**
+   * プロバイダのAPIキー。
+   *
+   * @remarks
+   * 実行時の上書きとして渡し、PIの設定ファイルには保存しない。PIが扱わない
+   * プロバイダやモデルを指定した場合は、セッションの生成に失敗する。
+   */
+  readonly apiKey: string;
+}
+
+/**
+ * PIが扱うモデル。
+ */
+export interface PiModel {
+  /** モデルを選ぶときに指定するID。 */
+  readonly id: string;
+
+  /** PIが定義する表示名。 */
+  readonly name: string;
+}
+
+/**
+ * {@link listPiModels}の設定。
+ */
+export interface PiModelsOptions {
+  /**
+   * モデルを列挙するプロバイダのID。
+   *
+   * @defaultValue 省略時はPIが扱うすべてのプロバイダのモデルを返す。
+   */
+  readonly provider?: string;
 }

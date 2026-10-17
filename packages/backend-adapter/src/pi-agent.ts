@@ -1,5 +1,7 @@
 import type { FinishReason } from "ai";
 import { AgentError } from "./errors.ts";
+import { createIsolatedModelRuntime } from "./pi-runtime.ts";
+import type { PiModelRuntime } from "./pi-runtime.ts";
 import type {
   AcpxPermissionMode,
   Agent,
@@ -7,12 +9,16 @@ import type {
   AgentSession,
   AgentUsage,
   PiAgentOptions,
+  PiModelSelection,
   SendOptions,
   SessionOptions,
 } from "./types.ts";
 
 /** 内蔵のPI Coding Agentのセッション。 */
 type PiSession = import("@earendil-works/pi-coding-agent").AgentSession;
+
+/** PIが使うモデル。 */
+type PiSdkModel = NonNullable<ReturnType<PiModelRuntime["getModel"]>>;
 
 /** PIのセッションが保持するメッセージ。 */
 type PiMessage = PiSession["messages"][number];
@@ -64,16 +70,48 @@ export function createPiAgent(options: PiAgentOptions): Agent {
       // 読み込みを確定させる。これを呼ばないと、上の指定はプロンプトに反映されない。
       await resourceLoader.reload();
 
+      // モデルを指定した場合は、PIの設定ではなく指定したモデルとAPIキーを使う。
+      const selection = await resolveModel(options.model);
+
       const { session } = await createAgentSession({
         cwd: options.cwd,
         // 会話履歴をディスクに残さない。
         sessionManager: SessionManager.inMemory(options.cwd),
         resourceLoader,
         tools: [...TOOLS_BY_PERMISSION[options.permissionMode ?? "deny-all"]],
+        ...selection,
       });
       return new PiAgentSession(session);
     },
   };
+}
+
+/**
+ * 指定されたモデルと認証を、PIに渡す形に解決する。
+ *
+ * @returns PIに渡すモデルとランタイム。指定がない場合は`undefined`（PIの設定に従う）。
+ * @throws `Error` — PIが扱わないプロバイダやモデルを指定した場合。
+ * @remarks
+ * APIキーは実行時の上書きとして渡すため、PIの設定ファイルには保存されない。
+ */
+async function resolveModel(
+  selection: PiModelSelection | undefined,
+): Promise<{ model: PiSdkModel; modelRuntime: PiModelRuntime } | undefined> {
+  if (selection === undefined) {
+    return undefined;
+  }
+
+  const modelRuntime = await createIsolatedModelRuntime();
+  if (modelRuntime.getProvider(selection.provider) === undefined) {
+    throw new Error(`PI does not know the provider: ${selection.provider}`);
+  }
+  await modelRuntime.setRuntimeApiKey(selection.provider, selection.apiKey);
+
+  const model = modelRuntime.getModel(selection.provider, selection.id);
+  if (model === undefined) {
+    throw new Error(`PI does not know the model: ${selection.provider}/${selection.id}`);
+  }
+  return { model, modelRuntime };
 }
 
 /**

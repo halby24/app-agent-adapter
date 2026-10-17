@@ -140,6 +140,17 @@ try {
 
 セッション固有の指示は `createSession({ instructions })` で上書きできる。会話履歴はセッションのメモリ上にのみ存在し、PIのセッションとしてもディスクに残さない。
 
+モデルとその認証は、指定しない限りPI側の設定（`~/.pi/agent`）に従う。アプリが用意したAPIキーで動かす場合は、モデルとキーを渡す。
+
+```ts
+const agent = createPiAgent({
+  cwd: "/path/to/project",
+  model: { provider: "anthropic", id: "claude-haiku-4-5", apiKey: apiKey },
+});
+```
+
+`provider`にはPIが扱うプロバイダ名を渡す。APIキーは実行時の上書きとして渡すため、PIの設定ファイル（`auth.json`）には保存しない。PIが扱わないプロバイダやモデルを指定した場合は、セッションの生成に失敗する。使えるモデルは`listPiModels()`で調べられる（PIに同梱された定義を読むだけで、問い合わせも認証も不要）。
+
 操作の範囲（`permissionMode`）はacpxと同じ語彙で指定する。PIでは実行時に許可を求めるのではなく、渡したツールだけが使える。
 
 | `permissionMode` | 使えるツール                             |
@@ -172,6 +183,7 @@ controller.abort();
 | `createModelAgent(options)`     | 言語モデルを直接呼び出すエージェントを生成する          |
 | `createAcpxAgent(options)`      | acpx経由でACPエージェントを動かすエージェントを生成する |
 | `createPiAgent(options)`        | 内蔵のPI Coding Agentを動かすエージェントを生成する     |
+| `listPiModels(options?)`        | 内蔵のPI Coding Agentが扱うモデルの一覧を返す           |
 | `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する              |
 | `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す                |
 | `session.close()`               | セッションを閉じ、進行中のターンを中断する              |
@@ -220,8 +232,9 @@ interface AgentUsage {
 - セッションをまたいだ履歴の共有はできない
 - acpx経由のエージェントは、セッションごとにacpxのランタイムとエージェントプロセスを生成する
 - モデルの上書きはacpx経由のエージェントだけで、`createSession({ model })` を指定できる。言語モデルを直接呼び出すエージェントは、モデルをエージェント生成時に固定する
-- PIのモデルとその認証はPI側の設定に従い、このアダプタからは指定しない
+- PIのモデルとその認証は、`model`を指定しない限りPI側の設定に従う。指定した場合もAPIキーは実行時の上書きとして使い、PIの設定ファイルには保存しない
 - PIの指示（`instructions`）は、PIの既定のプロンプトを置き換える（PIが足すスキルやコンテキストの節はそのまま）。置き換えるため、PIの既定の指示は残らない
+- PIが扱わないプロバイダやモデルを`model`に指定した場合は、セッションの生成に失敗する
 - PIを使う場合、Node.js 22.19以降が必要（`engines`）
 
 認証は、acpx経由の場合はエージェント本体（Claude Code、Codexなど）が担い、PIの場合はPIの設定が担う。アダプタはそれをそのまま利用する。

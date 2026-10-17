@@ -49,3 +49,4 @@ pnpm workspaceのモノレポ。パッケージは `packages/` 配下に置く�
   - 代わりにacpxのin-processランタイム（`acpx/runtime`）を採用する
   - acpxはACP互換のエージェントをCLI・ランタイムの両方から扱え、認証はエージェント本体に委ねられる
 - 内蔵ハーネスにはPI Coding Agentを採用。軽量でインストール不要でTSから直接使える数少ない選択肢で著名なため
+  - PI Coding Agent非対応プロバイダは工数削減&マイナーなため除外で暫定対処

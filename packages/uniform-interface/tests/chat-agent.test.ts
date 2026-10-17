@@ -1,8 +1,23 @@
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { MockLanguageModelV4 } from "ai/test";
 import { expect, test, vi } from "vite-plus/test";
 import { createChatAgent } from "../src/index.ts";
+
+const providerManagement = vi.hoisted(() => ({
+  createdModels: [] as unknown[],
+  modelOptions: [] as unknown[],
+}));
+
+vi.mock("provider-management", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("provider-management")>();
+  return {
+    ...actual,
+    createProviderModel: (options: unknown) => {
+      providerManagement.modelOptions.push(options);
+      return Promise.resolve({ modelId: (options as { modelId: string }).modelId });
+    },
+  };
+});
 
 const backend = vi.hoisted(() => ({
   modelAgentOptions: [] as unknown[],
@@ -20,9 +35,7 @@ vi.mock("backend-adapter", async (importOriginal) => {
     ...actual,
     createModelAgent: (options: unknown) => {
       backend.modelAgentOptions.push(options);
-      return {
-        createSession: () => Promise.reject(new Error("チャットではセッションを生成しない")),
-      };
+      return { createSession: () => Promise.resolve(backend.acpxSession) };
     },
     createAcpxAgent: (options: unknown) => {
       backend.acpxAgentOptions.push(options);
@@ -42,12 +55,24 @@ function workspaceOfCall(index: number): string {
   return options.cwd;
 }
 
-test("プロバイダを選ぶと、モデルを直接呼び出すエージェントを生成する", () => {
-  const model = new MockLanguageModelV4({});
+test("プロバイダを選ぶと、セッションの生成時にモデルを組み立てる", async () => {
+  backend.modelAgentOptions.length = 0;
+  providerManagement.modelOptions.length = 0;
 
-  createChatAgent({ kind: "provider", id: "openai", model, instructions: "簡潔に答える" });
+  await createChatAgent({
+    kind: "provider",
+    id: "openai",
+    model: "gpt-5.4-mini",
+    apiKey: "sk-openai",
+    instructions: "簡潔に答える",
+  }).createSession();
 
-  expect(backend.modelAgentOptions).toEqual([{ model, instructions: "簡潔に答える" }]);
+  expect(providerManagement.modelOptions).toEqual([
+    { providerId: "openai", modelId: "gpt-5.4-mini", apiKey: "sk-openai" },
+  ]);
+  expect(backend.modelAgentOptions).toEqual([
+    { model: { modelId: "gpt-5.4-mini" }, instructions: "簡潔に答える" },
+  ]);
 });
 
 test("ハーネスを選ぶと、操作を拒否した状態で使い捨ての作業ディレクトリで動かす", async () => {

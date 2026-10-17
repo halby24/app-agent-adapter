@@ -13,6 +13,7 @@
 export { createAcpxAgent } from "./acpx-agent.ts";
 export { createModelAgent } from "./model-agent.ts";
 export { createPiAgent } from "./pi-agent.ts";
+export { listPiModels } from "./pi-models.ts";
 export { AgentError } from "./errors.ts";
 export type { AgentErrorCode } from "./errors.ts";
 export type {
@@ -27,6 +28,9 @@ export type {
   FinishEvent,
   ModelAgentOptions,
   PiAgentOptions,
+  PiModel,
+  PiModelSelection,
+  PiModelsOptions,
   SendOptions,
   SessionOptions,
   TextDeltaEvent,

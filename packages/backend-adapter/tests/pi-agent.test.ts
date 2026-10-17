@@ -9,6 +9,9 @@ const pi = vi.hoisted(() => ({
   resourceLoaderOptions: [] as unknown[],
   resourceLoaderReloads: 0,
   inMemoryCwd: [] as Array<string | undefined>,
+  runtimeApiKeys: [] as Array<{ provider: string; apiKey: string }>,
+  knownProviders: [] as string[],
+  knownModels: [] as Array<{ provider: string; id: string }>,
 }));
 
 /** ターン1回分の台本。 */
@@ -119,6 +122,21 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
     }
   },
   getAgentDir: () => "/agent-dir",
+  ModelRuntime: {
+    create: () =>
+      Promise.resolve({
+        getProvider: (providerId: string) =>
+          pi.knownProviders.includes(providerId) ? { id: providerId } : undefined,
+        setRuntimeApiKey: (provider: string, apiKey: string) => {
+          pi.runtimeApiKeys.push({ provider, apiKey });
+          return Promise.resolve();
+        },
+        getModel: (provider: string, id: string) =>
+          pi.knownModels.some((entry) => entry.provider === provider && entry.id === id)
+            ? { id, provider }
+            : undefined,
+      }),
+  },
 }));
 
 let scripts: TurnScript[][] = [];
@@ -130,6 +148,9 @@ beforeEach(() => {
   pi.resourceLoaderOptions.length = 0;
   pi.resourceLoaderReloads = 0;
   pi.inMemoryCwd.length = 0;
+  pi.runtimeApiKeys.length = 0;
+  pi.knownProviders = [];
+  pi.knownModels = [];
 });
 
 function createAgent(
@@ -209,6 +230,59 @@ test("指示を指定しない場合は、PIの既定のプロンプトをその
   await (await createAgent({ cwd: "/project" }).createSession()).close();
 
   expect(pi.resourceLoaderOptions[0]).toEqual({ cwd: "/project", agentDir: "/agent-dir" });
+});
+
+test("モデルを指定すると、実行時のAPIキーで解決してセッションに渡す", async () => {
+  scripts = [[]];
+  pi.knownProviders = ["anthropic"];
+  pi.knownModels = [{ provider: "anthropic", id: "claude-sonnet-4-5" }];
+
+  await (
+    await createAgent({
+      cwd: "/project",
+      model: { provider: "anthropic", id: "claude-sonnet-4-5", apiKey: "sk-ant" },
+    }).createSession()
+  ).close();
+
+  // APIキーは実行時の上書きとして渡す（PIの設定ファイルには保存しない）。
+  expect(pi.runtimeApiKeys).toEqual([{ provider: "anthropic", apiKey: "sk-ant" }]);
+  expect(pi.sessionOptions[0]).toMatchObject({
+    model: { id: "claude-sonnet-4-5", provider: "anthropic" },
+  });
+});
+
+test("モデルを指定しない場合は、PIの設定に従う（実行時の上書きをしない）", async () => {
+  scripts = [[]];
+
+  await (await createAgent({ cwd: "/project" }).createSession()).close();
+
+  expect(pi.runtimeApiKeys).toEqual([]);
+  expect(pi.sessionOptions[0]).not.toHaveProperty("model");
+});
+
+test("バックエンドが扱わないプロバイダを指定すると失敗する", async () => {
+  scripts = [[]];
+  pi.knownProviders = ["anthropic"];
+
+  await expect(
+    createAgent({
+      cwd: "/project",
+      model: { provider: "cohere", id: "command-r", apiKey: "sk-cohere" },
+    }).createSession(),
+  ).rejects.toThrow("PI does not know the provider: cohere");
+});
+
+test("バックエンドが扱わないモデルを指定すると失敗する", async () => {
+  scripts = [[]];
+  pi.knownProviders = ["anthropic"];
+  pi.knownModels = [{ provider: "anthropic", id: "claude-sonnet-4-5" }];
+
+  await expect(
+    createAgent({
+      cwd: "/project",
+      model: { provider: "anthropic", id: "no-such-model", apiKey: "sk-ant" },
+    }).createSession(),
+  ).rejects.toThrow("PI does not know the model: anthropic/no-such-model");
 });
 
 test("テキスト差分を流し、最後にfinishを通知する", async () => {
