@@ -218,16 +218,6 @@ importers:
 
   packages/provider-management:
     dependencies:
-      acpx:
-        specifier: ^0.19.5
-        version: 0.19.5
-      ai:
-        specifier: ^7.0.142
-        version: 7.0.142(zod@4.6.7)
-      backend-adapter:
-        specifier: workspace:*
-        version: link:../backend-adapter
-    devDependencies:
       '@ai-sdk/anthropic':
         specifier: ^4.0.82
         version: 4.0.82(zod@4.6.7)
@@ -261,6 +251,16 @@ importers:
       '@ai-sdk/xai':
         specifier: ^5.0.24
         version: 5.0.24(zod@4.6.7)
+      acpx:
+        specifier: ^0.19.5
+        version: 0.19.5
+      ai:
+        specifier: ^7.0.142
+        version: 7.0.142(zod@4.6.7)
+      backend-adapter:
+        specifier: workspace:*
+        version: link:../backend-adapter
+    devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5

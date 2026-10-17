@@ -102,7 +102,7 @@ const agent = createCodingAgent({
 ## 現在の制約
 
 - プロバイダを選んだ場合のエージェント向けは、バックエンドが扱うプロバイダとモデルに限る。カタログのプロバイダはこれに合わせて選んでいる（`listAgentOptions()`）。モデルのIDはバックエンドの体系なので、`provider-management`の`listPiModels()`で調べる
-- モデルはチャットもエージェント向けもIDとAPIキーで指定する。IDは`provider-management`の`listModels()`で調べられる
+- モデルはチャットもエージェント向けもIDとAPIキーで指定する。IDは`provider-management`の`listModels()`で調べられる。モデルの組み立てに必要なSDKは`provider-management`の依存に含まれる
 - セッション単位のモデル上書きは扱わない（エージェント生成時の指定のみ）
 - ハーネスのチャットは使い捨ての作業ディレクトリを`close()`で片付ける。セッションを閉じないままプロセスが終わると、一時領域にディレクトリが残る
 - 選択肢の列挙・モデルの選択・APIキーの保持は `provider-management` の役割
