@@ -1,67 +1,72 @@
+import type { AcpxPermissionMode, Agent } from "backend-adapter";
 import { createAcpxAgent, createModelAgent } from "backend-adapter";
-import type { Agent } from "backend-adapter";
-import { findAgentOption } from "./catalog.ts";
-import type { AgentSelection } from "./types.ts";
+import type { LanguageModel } from "ai";
+import type { HarnessOption, ProviderOption } from "./catalog.ts";
 
 /**
- * {@link createAgent}が返す失敗の種類。
+ * プロバイダを選択したときの指定。
  *
- * - `option-not-found`: 一覧にないIDを選択した。
- * - `option-kind-mismatch`: IDは一覧にあるが、{@link AgentOptionKind}が選択と一致しない。
+ * 一覧の{@link ProviderOption}に、ターンの生成に必要な指定を加えたもの。
  */
-export type AgentSelectionErrorCode = "option-not-found" | "option-kind-mismatch";
-
-/**
- * 選択の指定が一覧と一致しないために失敗した。
- */
-export class AgentSelectionError extends Error {
-  /** 失敗の種類。 */
-  readonly code: AgentSelectionErrorCode;
-
-  /** 選択に指定されたID。 */
-  readonly id: string;
+export type ProviderSelection = ProviderOption & {
+  /**
+   * ターンの生成に使用する言語モデル。
+   *
+   * APIキーなどの認証はアプリ側の責務であり、認証済みのモデルをここに渡す。
+   */
+  readonly model: LanguageModel;
 
   /**
-   * @param code - 失敗の種類。
-   * @param id - 選択に指定されたID。
-   * @param message - 利用者向けの説明。
+   * すべてのセッションに適用するシステム指示。
+   *
+   * @defaultValue 省略時はシステム指示を送信しない。
    */
-  constructor(code: AgentSelectionErrorCode, id: string, message: string) {
-    super(message);
-    this.name = "AgentSelectionError";
-    this.code = code;
-    this.id = id;
-  }
-}
+  readonly instructions?: string;
+};
+
+/**
+ * ハーネスを選択したときの指定。
+ *
+ * 一覧の{@link HarnessOption}に、エージェントの起動に必要な指定を加えたもの。
+ */
+export type HarnessSelection = HarnessOption & {
+  /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
+  readonly cwd: string;
+
+  /**
+   * すべてのセッションに適用するシステム指示。
+   *
+   * @defaultValue 省略時はシステム指示を送信しない。
+   */
+  readonly instructions?: string;
+
+  /**
+   * エージェントが要求した操作の扱い。
+   *
+   * @defaultValue 省略時は`"deny-all"`（{@link createAgent}が補う）。
+   */
+  readonly permissionMode?: AcpxPermissionMode;
+};
+
+/**
+ * 一覧から選んだバックエンドの指定。
+ *
+ * 一覧の{@link AgentOption}をそのまま広げ、選択したバックエンドに必要な指定を
+ * 加えて作る。`kind`で種類を絞り込めるため、種類ごとに必要な指定は
+ * `option.kind`の判定で分岐できる。
+ */
+export type AgentSelection = ProviderSelection | HarnessSelection;
 
 /**
  * 一覧から選んだバックエンドのエージェントを生成する。
  *
  * @param selection - 選択した選択肢と、そのバックエンドに必要な指定。
  * @returns 選択したバックエンドのエージェント。利用方法は選択した種類によらず同じ。
- * @throws `AgentSelectionError` — `selection.id`が一覧にない場合（`option-not-found`）、
- * または一覧の種類と`selection.kind`が一致しない場合（`option-kind-mismatch`）。
  * @remarks
  * セッションの生成はエージェントの{@link Agent.createSession}で行う。プロバイダを選んだ場合は
  * 渡したモデルがそのまま使われ、ハーネスを選んだ場合はacpxがセッションごとにエージェントを起動する。
  */
 export function createAgent(selection: AgentSelection): Agent {
-  const option = findAgentOption(selection.id);
-  if (option === undefined) {
-    throw new AgentSelectionError(
-      "option-not-found",
-      selection.id,
-      `一覧にない選択肢です: ${selection.id}`,
-    );
-  }
-  if (option.kind !== selection.kind) {
-    throw new AgentSelectionError(
-      "option-kind-mismatch",
-      selection.id,
-      `選択肢${selection.id}の種類は${option.kind}です: ${selection.kind}`,
-    );
-  }
-
   return selection.kind === "provider"
     ? createModelAgent({ model: selection.model, instructions: selection.instructions })
     : createAcpxAgent({

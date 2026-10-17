@@ -9,17 +9,9 @@
  * @packageDocumentation
  */
 export { findAgentOption, listAgentOptions } from "./catalog.ts";
-export { AgentSelectionError, createAgent } from "./selection.ts";
-export type { AgentSelectionErrorCode } from "./selection.ts";
-export type {
-  AgentOption,
-  AgentOptionKind,
-  AgentSelection,
-  HarnessOption,
-  HarnessSelection,
-  ProviderOption,
-  ProviderSelection,
-} from "./types.ts";
+export type { AgentOption, AgentOptionKind, HarnessOption, ProviderOption } from "./catalog.ts";
+export { createAgent } from "./selection.ts";
+export type { AgentSelection, HarnessSelection, ProviderSelection } from "./selection.ts";
 export { AgentError } from "backend-adapter";
 export type { AgentErrorCode } from "backend-adapter";
 export type {

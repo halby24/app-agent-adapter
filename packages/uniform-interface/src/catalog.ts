@@ -1,4 +1,20 @@
-import type { AgentOption, HarnessOption, ProviderOption } from "./types.ts";
+/**
+ * プロバイダの選択肢を作る。
+ *
+ * 種類は`provider`に固定され、IDは指定した文字列のリテラル型として残る。
+ */
+function providerOption<const Id extends string>(entry: {
+  readonly id: Id;
+  readonly label: string;
+  readonly package: string;
+}): {
+  readonly kind: "provider";
+  readonly id: Id;
+  readonly label: string;
+  readonly package: string;
+} {
+  return { kind: "provider", ...entry };
+}
 
 /**
  * 組み込みのプロバイダ。
@@ -7,46 +23,44 @@ import type { AgentOption, HarnessOption, ProviderOption } from "./types.ts";
  * 画像・音声・動画だけのプロバイダは対象外とする。
  * モデルの生成（＝APIキーなどの認証）はアプリ側の責務なので、選択に必要な
  * AI SDKパッケージ名だけを持ち、パッケージ自体には依存しない。
+ * この一覧がIDの正本であり、公開する型はここから導出する。
  */
-const PROVIDERS: readonly ProviderOption[] = [
-  { kind: "provider", id: "openai", label: "OpenAI", package: "@ai-sdk/openai" },
-  { kind: "provider", id: "anthropic", label: "Anthropic", package: "@ai-sdk/anthropic" },
-  { kind: "provider", id: "google", label: "Google", package: "@ai-sdk/google" },
-  {
-    kind: "provider",
+const PROVIDERS = [
+  providerOption({ id: "openai", label: "OpenAI", package: "@ai-sdk/openai" }),
+  providerOption({ id: "anthropic", label: "Anthropic", package: "@ai-sdk/anthropic" }),
+  providerOption({ id: "google", label: "Google", package: "@ai-sdk/google" }),
+  providerOption({
     id: "google-vertex",
     label: "Google Vertex AI",
     package: "@ai-sdk/google-vertex",
-  },
-  {
-    kind: "provider",
+  }),
+  providerOption({
     id: "amazon-bedrock",
     label: "Amazon Bedrock",
     package: "@ai-sdk/amazon-bedrock",
-  },
-  { kind: "provider", id: "azure", label: "Azure OpenAI", package: "@ai-sdk/azure" },
-  { kind: "provider", id: "xai", label: "xAI", package: "@ai-sdk/xai" },
-  { kind: "provider", id: "mistral", label: "Mistral", package: "@ai-sdk/mistral" },
-  { kind: "provider", id: "groq", label: "Groq", package: "@ai-sdk/groq" },
-  { kind: "provider", id: "deepseek", label: "DeepSeek", package: "@ai-sdk/deepseek" },
-  { kind: "provider", id: "cerebras", label: "Cerebras", package: "@ai-sdk/cerebras" },
-  { kind: "provider", id: "cohere", label: "Cohere", package: "@ai-sdk/cohere" },
-  { kind: "provider", id: "togetherai", label: "Together AI", package: "@ai-sdk/togetherai" },
-  { kind: "provider", id: "fireworks", label: "Fireworks AI", package: "@ai-sdk/fireworks" },
-  { kind: "provider", id: "deepinfra", label: "DeepInfra", package: "@ai-sdk/deepinfra" },
-  { kind: "provider", id: "perplexity", label: "Perplexity", package: "@ai-sdk/perplexity" },
-  { kind: "provider", id: "alibaba", label: "Alibaba", package: "@ai-sdk/alibaba" },
-  { kind: "provider", id: "moonshotai", label: "Moonshot AI", package: "@ai-sdk/moonshotai" },
-  {
-    kind: "provider",
+  }),
+  providerOption({ id: "azure", label: "Azure OpenAI", package: "@ai-sdk/azure" }),
+  providerOption({ id: "xai", label: "xAI", package: "@ai-sdk/xai" }),
+  providerOption({ id: "mistral", label: "Mistral", package: "@ai-sdk/mistral" }),
+  providerOption({ id: "groq", label: "Groq", package: "@ai-sdk/groq" }),
+  providerOption({ id: "deepseek", label: "DeepSeek", package: "@ai-sdk/deepseek" }),
+  providerOption({ id: "cerebras", label: "Cerebras", package: "@ai-sdk/cerebras" }),
+  providerOption({ id: "cohere", label: "Cohere", package: "@ai-sdk/cohere" }),
+  providerOption({ id: "togetherai", label: "Together AI", package: "@ai-sdk/togetherai" }),
+  providerOption({ id: "fireworks", label: "Fireworks AI", package: "@ai-sdk/fireworks" }),
+  providerOption({ id: "deepinfra", label: "DeepInfra", package: "@ai-sdk/deepinfra" }),
+  providerOption({ id: "perplexity", label: "Perplexity", package: "@ai-sdk/perplexity" }),
+  providerOption({ id: "alibaba", label: "Alibaba", package: "@ai-sdk/alibaba" }),
+  providerOption({ id: "moonshotai", label: "Moonshot AI", package: "@ai-sdk/moonshotai" }),
+  providerOption({
     id: "openai-compatible",
     label: "OpenAI Compatible",
     package: "@ai-sdk/openai-compatible",
-  },
+  }),
 ];
 
 /**
- * 組み込みのハーネス。
+ * 組み込みのハーネス名。
  *
  * acpxの組み込みエージェント名をそのまま列挙する。一覧に載せるかどうかの判断は
  * このパッケージが持ち、acpxの対応エージェントの正本はacpx側にある。
@@ -81,11 +95,46 @@ const HARNESS_NAMES = [
   "pi",
 ] as const;
 
-const HARNESSES: readonly HarnessOption[] = HARNESS_NAMES.map((id) => ({
-  kind: "harness",
-  id,
-  label: id,
-}));
+/**
+ * ハーネスの選択肢を作る。
+ *
+ * 表示用の別名を定義していないため、IDと同じacpxの組み込み名を表示名にする。
+ */
+function harnessOption(id: (typeof HARNESS_NAMES)[number]): {
+  readonly kind: "harness";
+  readonly id: (typeof HARNESS_NAMES)[number];
+  readonly label: string;
+} {
+  return { kind: "harness", id, label: id };
+}
+
+const HARNESSES = HARNESS_NAMES.map(harnessOption);
+
+/** 言語モデルを直接呼び出すプロバイダの選択肢。 */
+export type ProviderOption = (typeof PROVIDERS)[number];
+
+/** ACP互換のコーディングエージェント（ハーネス）の選択肢。 */
+export type HarnessOption = (typeof HARNESSES)[number];
+
+/**
+ * 利用者が選択できるエージェントのバックエンド。
+ *
+ * {@link listAgentOptions}が返す一覧の要素であり、選択時は
+ * {@link AgentSelection}として{@link createAgent}に渡す。
+ *
+ * - `id`: 一覧内で一意なID。プロバイダはAI SDKのプロバイダ名、ハーネスはacpxの組み込み名と一致する。
+ * - `label`: 一覧に表示する名前。
+ * - `package`: 選択に必要なAI SDKのプロバイダパッケージ（プロバイダのみ）。
+ */
+export type AgentOption = ProviderOption | HarnessOption;
+
+/**
+ * 選択肢の種類。
+ *
+ * - `provider`: AI SDKのプロバイダが提供する言語モデルを直接呼び出す。
+ * - `harness`: ACP互換のコーディングエージェントをacpx経由で動かす。
+ */
+export type AgentOptionKind = AgentOption["kind"];
 
 const AGENT_OPTIONS: readonly AgentOption[] = [...PROVIDERS, ...HARNESSES];
 
@@ -103,6 +152,8 @@ export function listAgentOptions(): readonly AgentOption[] {
  *
  * @param id - 探す{@link AgentOption}のID。
  * @returns 一致する選択肢。該当がなければ`undefined`。
+ * @remarks
+ * 保存した選択を復元する場合など、一覧の外から来たID文字列を解決するために使う。
  */
 export function findAgentOption(id: string): AgentOption | undefined {
   return AGENT_OPTIONS.find((option) => option.id === id);

@@ -1,7 +1,7 @@
 import { MockLanguageModelV4 } from "ai/test";
 import { expect, test, vi } from "vite-plus/test";
-import type { AgentEvent } from "../src/index.ts";
-import { createAgent } from "../src/index.ts";
+import type { AgentEvent, HarnessOption, ProviderOption } from "../src/index.ts";
+import { createAgent, findAgentOption } from "../src/index.ts";
 
 const acpx = vi.hoisted(() => ({
   createAcpxAgent: vi.fn(() => ({
@@ -15,6 +15,24 @@ vi.mock("backend-adapter", async (importOriginal) => {
   const actual = await importOriginal<typeof import("backend-adapter")>();
   return { ...actual, createAcpxAgent: acpx.createAcpxAgent };
 });
+
+/** 一覧からプロバイダの選択肢を取り出す。 */
+function providerOption(id: string): ProviderOption {
+  const option = findAgentOption(id);
+  if (option === undefined || option.kind !== "provider") {
+    throw new Error(`一覧にプロバイダの選択肢がない: ${id}`);
+  }
+  return option;
+}
+
+/** 一覧からハーネスの選択肢を取り出す。 */
+function harnessOption(id: string): HarnessOption {
+  const option = findAgentOption(id);
+  if (option === undefined || option.kind !== "harness") {
+    throw new Error(`一覧にハーネスの選択肢がない: ${id}`);
+  }
+  return option;
+}
 
 const usage = {
   inputTokens: { total: 5, noCache: 5, cacheRead: undefined, cacheWrite: undefined },
@@ -52,8 +70,7 @@ async function collect(events: AsyncIterable<AgentEvent>): Promise<AgentEvent[]>
 
 test("プロバイダを選ぶと、渡したモデルでターンを送信できる", async () => {
   const session = await createAgent({
-    kind: "provider",
-    id: "openai",
+    ...providerOption("openai"),
     model: createTextModel("Hello"),
   }).createSession();
 
@@ -74,8 +91,7 @@ test("プロバイダを選ぶと、渡したモデルでターンを送信で�
 
 test("ハーネスを選ぶと、組み込み名と作業ディレクトリがacpxに渡される", () => {
   createAgent({
-    kind: "harness",
-    id: "claude",
+    ...harnessOption("claude"),
     cwd: "/project",
     instructions: "review",
     permissionMode: "approve-reads",
@@ -87,17 +103,4 @@ test("ハーネスを選ぶと、組み込み名と作業ディレクトリがac
     instructions: "review",
     permissionMode: "approve-reads",
   });
-});
-
-test("一覧にないIDを選ぶとoption-not-foundで失敗する", () => {
-  expect(() => createAgent({ kind: "harness", id: "no-such-harness", cwd: "/project" })).toThrow(
-    expect.objectContaining({ code: "option-not-found", id: "no-such-harness" }),
-  );
-});
-
-test("一覧にあるIDでも種類が一致しないとoption-kind-mismatchで失敗する", () => {
-  // openaiはプロバイダのIDなので、ハーネスとして選ぶことはできない。
-  expect(() => createAgent({ kind: "harness", id: "openai", cwd: "/project" })).toThrow(
-    expect.objectContaining({ code: "option-kind-mismatch", id: "openai" }),
-  );
 });
