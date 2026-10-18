@@ -6,7 +6,6 @@
     "acpx",
     "agent",
     "ai",
-    "ai-sdk",
     "electrobun",
     "electron"
   ],
@@ -41,7 +40,6 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "ai": "^7.0.142",
     "backend-adapter": "workspace:*",
     "provider-management": "workspace:*"
   },

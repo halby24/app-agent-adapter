@@ -9,7 +9,6 @@ import type {
   SessionAgentOptions,
 } from "acpx/runtime";
 import { createAcpRuntime } from "acpx/runtime";
-import type { FinishReason } from "ai";
 import { AgentError } from "./errors.ts";
 import { toAgentUsage, toToolText } from "./stream-parts.ts";
 import type {
@@ -19,6 +18,7 @@ import type {
   AgentEvent,
   AgentSession,
   AgentUsage,
+  FinishReason,
   SendOptions,
   ToolKind,
 } from "./types.ts";

@@ -1,4 +1,11 @@
-import type { FinishReason, LanguageModel } from "ai";
+/**
+ * モデルが生成を終了した理由。
+ *
+ * PIとacpxの停止理由を共通の語彙に読み替えたもの。`"stop"`は通常の終了、
+ * `"length"`は上限による停止、`"content-filter"`は内容制限、
+ * `"tool-calls"`はツールの利用、`"error"`は失敗、`"other"`はそれ以外。
+ */
+export type FinishReason = "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other";
 
 /**
  * エージェントが要求した操作（ファイル編集、コマンド実行など）をどう扱うか。
@@ -10,25 +17,6 @@ import type { FinishReason, LanguageModel } from "ai";
  * - `deny-all`: すべての要求を拒否する。エージェントは読み取り以外の操作ができない。
  */
 export type AcpxPermissionMode = "approve-all" | "approve-reads" | "deny-all";
-
-/**
- * 言語モデルを直接呼び出すエージェントの構成。
- */
-export interface ModelAgentOptions {
-  /**
-   * ターンの生成に使用する言語モデル。
-   *
-   * AI SDKのプロバイダから取得したモデルを渡す。モデルの切り替えはエージェント単位で行う。
-   */
-  readonly model: LanguageModel;
-
-  /**
-   * すべてのセッションに適用するシステム指示。
-   *
-   * @defaultValue 省略時はシステム指示を送信しない。
-   */
-  readonly instructions?: string;
-}
 
 /**
  * セッション生成時に適用する設定。
@@ -354,6 +342,36 @@ export interface PiAgentOptions {
    * 読み取り以外のツール（書き込み、コマンド実行）を渡さないため、結果は同じになる。
    */
   readonly permissionMode?: AcpxPermissionMode;
+}
+
+/**
+ * チャット用に固定したPIエージェント（`{@link createPiChatAgent}`）の設定。
+ *
+ * @remarks
+ * コーディング用とは異なり、ツールを使わず、PIの既定プロンプトや技能などの資源も
+ * 読み込まない。受け付ける指定は作業場所・モデル・指示だけに絞り、隔離の細目は
+ * 内部で固定する。利用者の`~/.pi/agent`は読まない。
+ */
+export interface PiChatAgentOptions {
+  /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
+  readonly cwd: string;
+
+  /**
+   * 使うモデルとその認証。
+   *
+   * @defaultValue 省略時は一時設定の中でのPIの既定（利用者の `~/.pi/agent` は読まない）。
+   */
+  readonly model?: PiModelSelection;
+
+  /**
+   * すべてのセッションに適用するシステム指示。
+   *
+   * @defaultValue 省略時や空文字の場合は短い中立のチャット指示を使う。
+   * @remarks
+   * コーディング用と異なり、PIの既定プロンプトは使わない。空でない指示を指定した
+   * 場合は、その指示に置き換える。
+   */
+  readonly instructions?: string;
 }
 
 /**

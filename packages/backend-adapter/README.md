@@ -2,11 +2,11 @@
 
 ローカルアプリ（Electron、Electrobunなど）から、利用者自身のモデル契約やAPIキーでAIエージェントを動かすためのアダプタ。
 
-[Vercel AI SDK](https://ai-sdk.dev/) を土台に、アプリが扱いやすい小さなエージェントAPIを提供する。次の3種類のエージェントを同じ公開APIで扱える。
+アプリが扱いやすい小さなエージェントAPIを提供する。次の3種類のエージェントを同じ公開APIで扱える。
 
-- 言語モデルを直接呼び出すエージェント
 - ACP互換のコーディングエージェントを [acpx](https://github.com/openclaw/acpx) 経由で動かすエージェント
 - 内蔵の [PI Coding Agent](https://pi.dev/docs/latest/sdk) をプロセス内で動かすエージェント
+- ツールなしのチャット用に固定したPIエージェント
 
 ## できること
 
@@ -14,33 +14,29 @@
 - モデルのテキスト出力をイベントとして逐次受け取る
 - ツールの実行（開始・途中経過・結果）をイベントとして逐次受け取る
 - 思考（reasoning）の差分もイベントとして受け取る（表示するかは利用側が決める）
-- 利用者が用意したAI SDKのモデル、acpxが対応するコーディングエージェント、または内蔵のPI Coding Agentを渡す
+- acpxが対応するコーディングエージェントや内蔵のPI Coding Agentから選んで使う
 - セッション単位・ターン単位の中断
 
 現時点では履歴の永続化には対応していない。
 
 ## インストール
 
-言語モデルを直接呼び出す場合:
-
 ```bash
-pnpm add backend-adapter @ai-sdk/openai
+pnpm add backend-adapter
 ```
 
-`ai` (Vercel AI SDK) は依存として自動的にインストールされる。モデルに応じて任意のAI SDKプロバイダを追加する。
-
-コーディングエージェントを動かす場合も追加のインストールは不要（`acpx` が依存として入る）。利用するエージェント本体（Claude Code、Codexなど）のインストールと認証は利用者が済ませておく。
+追加のインストールは不要（`acpx` とPI Coding Agentが依存として入る）。acpx経由で利用するエージェント本体（Claude Code、Codexなど）のインストールと認証は利用者が済ませておく。PIのモデルと認証はPI側の設定か、アプリが用意したAPIキーを使う。
 
 ## 使い方
 
-### 言語モデルを直接呼び出す
+### ツールなしのチャット用に固定したPIエージェントを使う
 
 ```ts
-import { openai } from "@ai-sdk/openai";
-import { createModelAgent } from "backend-adapter";
+import { createPiChatAgent } from "backend-adapter";
 
-const agent = createModelAgent({
-  model: openai("gpt-5.4-mini"),
+const agent = createPiChatAgent({
+  cwd: "/path/to/project",
+  model: { provider: "anthropic", id: "claude-haiku-4-5", apiKey: apiKey },
   instructions: "あなたは簡潔に答えるアシスタントです。",
 });
 
@@ -67,7 +63,7 @@ try {
 }
 ```
 
-セッション固有の指示を渡すこともできる。省略した場合は `createModelAgent()` の `instructions` を継承する。
+ツールは使わず、PIの既定プロンプトや技能なども読み込まない。`instructions` を省略したり空文字にすると、短い中立のチャット指示を使う。セッション固有の指示は `createSession({ instructions })` で上書きできる。`model` を省略した場合は一時設定の中でのPIの既定に従う（利用者の `~/.pi/agent` は読まない）。
 
 ```ts
 const session = await agent.createSession({
@@ -111,7 +107,7 @@ try {
 
 ### 利用できるモデルを調べる
 
-利用できるモデルの一覧は [provider-management](../provider-management) の `listAcpxModels()` が扱う。エージェントのプロセスを1つ起動して調べるため、セッションと同じ `cwd` を渡す。
+利用できるモデルの一覧は `listPiModels()` が返す（PIに同梱された定義を読むだけで、問い合わせも認証も不要）。ハーネスのモデルは [provider-management](../provider-management) の `listModels()` が扱う。ハーネスの場合はエージェントのプロセスを1つ起動して調べるため、セッションと同じ `cwd` を渡す。
 
 ### 内蔵のPI Coding Agentを動かす
 
@@ -180,17 +176,17 @@ controller.abort();
 
 ## 公開API
 
-| API                             | 説明                                                    |
-| ------------------------------- | ------------------------------------------------------- |
-| `createModelAgent(options)`     | 言語モデルを直接呼び出すエージェントを生成する          |
-| `createAcpxAgent(options)`      | acpx経由でACPエージェントを動かすエージェントを生成する |
-| `createPiAgent(options)`        | 内蔵のPI Coding Agentを動かすエージェントを生成する     |
-| `listPiModels(options?)`        | 内蔵のPI Coding Agentが扱うモデルの一覧を返す           |
-| `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する              |
-| `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す                |
-| `session.close()`               | セッションを閉じ、進行中のターンを中断する              |
+| API                             | 説明                                                     |
+| ------------------------------- | -------------------------------------------------------- |
+| `createAcpxAgent(options)`      | acpx経由でACPエージェントを動かすエージェントを生成する  |
+| `createPiAgent(options)`        | 内蔵のPI Coding Agentを動かすエージェントを生成する      |
+| `createPiChatAgent(options)`    | ツールなしのチャット用に固定したPIエージェントを生成する |
+| `listPiModels(options?)`        | 内蔵のPI Coding Agentが扱うモデルの一覧を返す            |
+| `agent.createSession(options?)` | 独立した会話履歴を持つセッションを生成する               |
+| `session.send(input, options?)` | 1ターンを送信し、`AgentEvent` を逐次返す                 |
+| `session.close()`               | セッションを閉じ、進行中のターンを中断する               |
 
-`send()` は `AsyncIterable<AgentEvent>` を返す。リクエストは反復を開始した時点で送信される。acpxとPIの場合、セッションの会話履歴はそれぞれのセッションが保持する。
+`send()` は `AsyncIterable<AgentEvent>` を返す。リクエストは反復を開始した時点で送信される。いずれのバックエンドでも、セッションの会話履歴はそのセッションが保持する。
 
 ### イベント
 
@@ -215,6 +211,8 @@ type AgentEvent =
     };
 
 type ToolKind = "read" | "search" | "edit" | "execute" | "other";
+
+type FinishReason = "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other";
 
 interface AgentUsage {
   inputTokens?: number;
@@ -280,9 +278,10 @@ try {
 - 会話履歴はセッションのメモリ上にのみ存在し、永続化・復元はできない（acpxのセッションストアとPIのセッションはアダプタがインメモリで持つ）
 - セッションをまたいだ履歴の共有はできない
 - acpx経由のエージェントは、セッションごとにacpxのランタイムとエージェントプロセスを生成する
-- モデルの上書きはacpx経由のエージェントだけで、`createSession({ model })` を指定できる。言語モデルを直接呼び出すエージェントは、モデルをエージェント生成時に固定する
+- モデルの上書きはacpx経由のエージェントだけで、`createSession({ model })` を指定できる
 - PIのモデルとその認証は、`model`を指定しない限りPI側の設定に従う。指定した場合もAPIキーは実行時の上書きとして使い、PIの設定ファイルには保存しない
-- PIの指示（`instructions`）は、PIの既定のプロンプトを置き換える（PIが足すスキルやコンテキストの節はそのまま）。置き換えるため、PIの既定の指示は残らない
+- PIの指示（`instructions`）は、コーディング用ではPIの既定のプロンプトを置き換える（PIが足すスキルやコンテキストの節はそのまま）。置き換えるため、PIの既定の指示は残らない。チャット用では未指定や空文字の場合に短い中立の指示を使い、PIの既定プロンプトや技能などは読み込まない
+- チャット用のPIはセッションごとに一時 `agentDir` を作り、`close()` で削除する。閉じずにプロセスが落ちると一時領域に残る。ツールは使わず、追加のモデル呼び出し（キャッシュ温め・要約・再試行）を抑え、利用者の `~/.pi/agent` は読まない
 - PIが扱わないプロバイダやモデルを`model`に指定した場合は、セッションの生成に失敗する
 - PIを使う場合、Node.js 22.19以降が必要（`engines`）
 

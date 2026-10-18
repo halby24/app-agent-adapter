@@ -220,7 +220,7 @@ test("失敗したツールはisErrorとして通知し、diffは場所だけを
   }
 });
 
-test("エージェントの停止理由をAI SDKの終了理由に変換する", async () => {
+test("エージェントの停止理由を公開APIの終了理由に変換する", async () => {
   const reasons = [
     { stopReason: "max_tokens", expected: "length" },
     { stopReason: "refusal", expected: "content-filter" },

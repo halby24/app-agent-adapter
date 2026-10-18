@@ -21,7 +21,7 @@ export type CodingAgentOptions =
        * セッションで使うモデルID。
        *
        * @remarks
-       * チャットと違い、プロバイダのモデルそのものではなくIDを渡す。バックエンドが
+       * チャットと同じくモデルIDとAPIキーで指定し、バックエンドが
        * プロバイダのモデルとして解決する。
        */
       readonly model: string;

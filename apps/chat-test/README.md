@@ -2,7 +2,7 @@
 
 選んだバックエンドのチャットを手元で試すための簡易アプリ。Electrobun 2系で作る。
 
-`provider-management`が列挙するバックエンド（AI SDKのプロバイダとACP互換のハーネス）から1つ選び、
+`provider-management`が列挙するバックエンド（内蔵のエージェントで動かすプロバイダとACP互換のハーネス）から1つ選び、
 モデルとAPIキーを指定してチャット用セッションを開き、1ターンずつ送信できる。
 バックエンドの組み立ては`uniform-interface`の`createChatAgent`に任せるため、このアプリは
 選んだIDと受け取ったイベントを受け渡すだけになっている。
@@ -35,7 +35,7 @@ SDKを`apps/chat-test/.hutch/devkit`へダウンロードする。どちらも�
 
 ## バックエンドの選び方
 
-- **プロバイダ**: モデルIDとAPIキーを指定してモデルを直接呼び出す。APIキーは画面で入力するか、
+- **プロバイダ**: モデルIDとAPIキーを指定してチャット用のPIで動かす。APIキーは画面で入力するか、
   次の環境変数から読む。画面で入力したキーが優先される。
   `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` / `XAI_API_KEY` /
   `MISTRAL_API_KEY` / `GROQ_API_KEY` / `DEEPSEEK_API_KEY` / `CEREBRAS_API_KEY` /
@@ -74,7 +74,7 @@ SDKを`apps/chat-test/.hutch/devkit`へダウンロードする。どちらも�
 
 ## メモ
 
-- メインプロセスのランタイムはBun。バックエンドはacpx、PI Coding Agent、AI SDKなど動的読み込みや
+- メインプロセスのランタイムはBun。バックエンドはacpxやPI Coding Agentなど動的読み込みや
   サブプロセス起動を含む依存を抱えるため、Node互換を狙うCottontailより確実な選択にしている。
 - `electrobun.config.ts`の`build.bun.external`で`provider-management`と`uniform-interface`を
   バンドル対象から外し、ワークスペースの`node_modules`から実行時に読む。そのためこのアプリは

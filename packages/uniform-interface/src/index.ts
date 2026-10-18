@@ -25,6 +25,7 @@ export type {
   AgentSession,
   AgentUsage,
   FinishEvent,
+  FinishReason,
   SendOptions,
   SessionOptions,
   TextDeltaEvent,

@@ -6,7 +6,7 @@ import type { HarnessChoice, ProviderChoice } from "./choice.ts";
 /**
  * バックエンドが使うときのプロバイダ名。
  *
- * カタログのID（AI SDKのプロバイダ名）とバックエンドのプロバイダ名が違うものだけを並べる。
+ * カタログのIDとバックエンドのプロバイダ名が違うものだけを並べる。
  */
 const BACKEND_PROVIDER_IDS: Partial<Record<ProviderId, string>> = {
   togetherai: "together",

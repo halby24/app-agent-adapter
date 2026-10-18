@@ -1,18 +1,19 @@
 /**
  * ローカルアプリ向けのAIエージェントアダプタ。
  *
- * 次の2種類のエージェントを同じ公開APIで提供する。
+ * 次のエージェントを同じ公開APIで提供する。
  *
- * - 言語モデルを直接呼び出すエージェント（`{@link createModelAgent}`）
  * - ACP互換のコーディングエージェントをacpx経由で動かすエージェント（`{@link createAcpxAgent}`）
+ * - 内蔵のPI Coding Agentを動かすエージェント（`{@link createPiAgent}`）
+ * - ツールなしのチャット用に固定したPIエージェント（`{@link createPiChatAgent}`）
  *
  * セッションは複数ターンの会話履歴をメモリに保持するが、永続化は行わない。
  *
  * @packageDocumentation
  */
 export { createAcpxAgent } from "./acpx-agent.ts";
-export { createModelAgent } from "./model-agent.ts";
 export { createPiAgent } from "./pi-agent.ts";
+export { createPiChatAgent } from "./pi-chat-agent.ts";
 export { listPiModels } from "./pi-models.ts";
 export { AgentError } from "./errors.ts";
 export type { AgentErrorCode } from "./errors.ts";
@@ -26,8 +27,9 @@ export type {
   AgentSession,
   AgentUsage,
   FinishEvent,
-  ModelAgentOptions,
+  FinishReason,
   PiAgentOptions,
+  PiChatAgentOptions,
   PiModel,
   PiModelSelection,
   PiModelsOptions,

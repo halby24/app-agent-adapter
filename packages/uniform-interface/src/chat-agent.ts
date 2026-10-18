@@ -1,9 +1,9 @@
 import type { Agent, AgentSession, SessionOptions } from "backend-adapter";
-import { createAcpxAgent, createModelAgent } from "backend-adapter";
+import { createAcpxAgent, createPiChatAgent } from "backend-adapter";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createProviderModel } from "provider-management";
+import { toBackendProviderId } from "provider-management";
 import type { HarnessChoice, ProviderChoice } from "provider-management";
 
 /**
@@ -27,7 +27,7 @@ export type ChatAgentOptions =
       /**
        * すべてのセッションに適用するシステム指示。
        *
-       * @defaultValue 省略時はシステム指示を送信しない。
+       * @defaultValue 省略時や空文字の場合は短い中立のチャット指示を使う。
        */
       readonly instructions?: string;
     })
@@ -55,9 +55,10 @@ export type ChatAgentOptions =
  * @param options - 選んだバックエンドと、チャットに必要な指定。
  * @returns セッションを生成できるエージェント。
  * @remarks
- * プロバイダを選んだ場合はモデルを組み立てて直接呼び出す（tool useなし）。ハーネスを選んだ場合は、
- * セッションごとに使い捨ての作業ディレクトリを作り、そこで操作を拒否した状態で動かす。
- * モデルの組み立てはセッションの生成時に行う。
+ * プロバイダを選んだ場合は内蔵のPI Coding Agentをチャット用に固定した構成で動かす。
+ * ハーネスを選んだ場合は、セッションごとに使い捨ての作業ディレクトリを作り、
+ * そこで操作を拒否した状態で動かす。どちらの場合もセッションの生成時に
+ * 一時ディレクトリを作り、`{@link AgentSession.close}`で片付ける。
  */
 export function createChatAgent(options: ChatAgentOptions): Agent {
   if (options.kind === "provider") {
@@ -69,7 +70,8 @@ export function createChatAgent(options: ChatAgentOptions): Agent {
 /**
  * プロバイダを選んだときのチャット用エージェントを生成する。
  *
- * モデルはセッションの生成時に組み立てる（SDKの読み込みを待たずにこの関数を返せるようにするため）。
+ * 内蔵のPI Coding Agentをチャット用に固定した構成で動かす。モデルとAPIキーは
+ * バックエンドが扱うプロバイダ名に読み替えて渡す。
  */
 function createProviderChatAgent(
   options: ProviderChoice & {
@@ -80,13 +82,16 @@ function createProviderChatAgent(
 ): Agent {
   return {
     async createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
-      const model = await createProviderModel({
-        providerId: options.id,
-        modelId: options.model,
-        apiKey: options.apiKey,
-      });
-      return createModelAgent({ model, instructions: options.instructions }).createSession(
-        sessionOptions,
+      return createSessionWithTempWorkspace((cwd) =>
+        createPiChatAgent({
+          cwd,
+          model: {
+            provider: toBackendProviderId(options.id),
+            id: options.model,
+            apiKey: options.apiKey,
+          },
+          instructions: options.instructions,
+        }).createSession(sessionOptions),
       );
     },
   };
@@ -103,24 +108,39 @@ function createHarnessChatAgent(
 ): Agent {
   return {
     async createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
-      const cwd = await mkdtemp(join(tmpdir(), "uniform-interface-chat-"));
-      let session: AgentSession;
-      try {
-        session = await createAcpxAgent({
+      return createSessionWithTempWorkspace((cwd) =>
+        createAcpxAgent({
           agent: options.id,
           cwd,
           model: options.model,
           instructions: options.instructions,
           // チャットなので、エージェントに操作を許さない。
           permissionMode: "deny-all",
-        }).createSession(sessionOptions);
-      } catch (error) {
-        await removeWorkspace(cwd);
-        throw error;
-      }
-      return withRemovedWorkspace(session, cwd);
+        }).createSession(sessionOptions),
+      );
     },
   };
+}
+
+/**
+ * 使い捨ての作業ディレクトリを作り、その中でセッションを生成する。
+ *
+ * プロバイダとハーネスのどちらのチャットでも使う。チャットには作業ディレクトリの
+ * 指定がないため、一時領域に作り、セッションを閉じるときに片付ける。
+ * 生成に失敗した場合は作ったディレクトリを残さない。
+ */
+async function createSessionWithTempWorkspace(
+  createInner: (cwd: string) => Promise<AgentSession>,
+): Promise<AgentSession> {
+  const cwd = await mkdtemp(join(tmpdir(), "uniform-interface-chat-"));
+  let session: AgentSession;
+  try {
+    session = await createInner(cwd);
+  } catch (error) {
+    await removeWorkspace(cwd);
+    throw error;
+  }
+  return withRemovedWorkspace(session, cwd);
 }
 
 /**
