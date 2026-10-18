@@ -1,6 +1,7 @@
 import type { AgentSessionEvent, AgentSession as PiSession } from "@earendil-works/pi-coding-agent";
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 import { createPiAgent } from "../src/pi-agent.ts";
+import { createPiChatAgent } from "../src/pi-chat-agent.ts";
 import { AgentError } from "../src/index.ts";
 import type { AgentEvent } from "../src/index.ts";
 
@@ -35,6 +36,10 @@ class FakePiSession {
   readonly navigations: Array<{ targetId: string; summarize: boolean }> = [];
   aborts = 0;
   disposes = 0;
+  /** `setActiveToolsByName`で有効にしたツール名（現在の有効集合）。 */
+  activeToolNames: string[] = [];
+  /** `setActiveToolsByName`の呼び出し履歴。生成直後の初期化も含む。 */
+  readonly activeToolHistory: string[][] = [];
   /** 現在の末尾エントリ。空の履歴では`null`。 */
   leafId: string | null = null;
   /** 履歴エントリ（直線のみ。一時停止も分岐も作らない）。 */
@@ -123,6 +128,15 @@ class FakePiSession {
     this.disposes += 1;
   }
 
+  setActiveToolsByName(names: string[]): void {
+    this.activeToolHistory.push([...names]);
+    this.activeToolNames = [...names];
+  }
+
+  getActiveToolNames(): string[] {
+    return [...this.activeToolNames];
+  }
+
   #emit(event: unknown): void {
     for (const listener of this.#listeners) {
       listener(event as AgentSessionEvent);
@@ -144,6 +158,9 @@ vi.mock("@earendil-works/pi-coding-agent", () => ({
       pi.inMemoryCwd.push(cwd);
       return { kind: "in-memory" };
     },
+  },
+  SettingsManager: {
+    inMemory: () => ({ kind: "in-memory-settings" }),
   },
   DefaultResourceLoader: class {
     readonly #options: Record<string, unknown>;
@@ -227,24 +244,187 @@ test("作業ディレクトリと操作の範囲を指定してセッション�
     cwd: "/project",
     // 会話履歴はディスクに残さない。
     sessionManager: { kind: "in-memory" },
-    // 操作をすべて許す場合は、読み取りに加えて書き込みとコマンド実行のツールも渡す。
+    // 登録は最大にしておき、有効化はターンごとに切り替える。
     tools: ["read", "grep", "find", "ls", "bash", "edit", "write"],
   });
   expect(pi.inMemoryCwd[0]).toBe("/project");
+  // 初期の有効集合は既定（approve-all）に合わせる。
+  expect(fakes.at(-1)?.activeToolHistory).toEqual([
+    ["read", "grep", "find", "ls", "bash", "edit", "write"],
+  ]);
 });
 
-test("deny-allとapprove-readsでは読み取りだけのツールを渡す", async () => {
-  scripts = [[], []];
+test("生成時のtoolsは常に全ツールで、初期の有効集合だけが既定で変わる", async () => {
+  scripts = [[], [], []];
 
   await (await createAgent({ cwd: "/project" }).createSession()).close();
   await (
     await createAgent({ cwd: "/project", permissionMode: "approve-reads" }).createSession()
   ).close();
+  await (
+    await createAgent({ cwd: "/project", permissionMode: "deny-all" }).createSession()
+  ).close();
 
+  const fullTools = ["read", "grep", "find", "ls", "bash", "edit", "write"];
   expect(pi.sessionOptions.map((options) => (options as { tools: string[] }).tools)).toEqual([
-    ["read", "grep", "find", "ls"],
-    ["read", "grep", "find", "ls"],
+    fullTools,
+    fullTools,
+    fullTools,
   ]);
+  // 初期の有効集合は既定に従う。deny-allはツールなし。
+  expect(fakes.map((fake) => fake.getActiveToolNames())).toEqual([
+    [],
+    ["read", "grep", "find", "ls"],
+    [],
+  ]);
+});
+
+test("同一セッションでターンごとに有効なツール集合を切り替える", async () => {
+  scripts = [[{ deltas: ["one"] }], [{ deltas: ["two"] }], [{ deltas: ["three"] }]];
+  const session = await createAgent({ cwd: "/project" }).createSession();
+  const fake = fakes.at(-1);
+
+  try {
+    // 既定はdeny-all（ツールなし）。
+    expect(fake?.getActiveToolNames()).toEqual([]);
+    await expect(
+      collect(session.send("first", { permissionMode: "approve-all" })),
+    ).resolves.toEqual([
+      { type: "text-delta", text: "one" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: expect.anything(),
+        text: "one",
+      },
+    ]);
+    expect(fake?.getActiveToolNames()).toEqual([
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "bash",
+      "edit",
+      "write",
+    ]);
+
+    await collect(session.send("second"));
+    expect(fake?.getActiveToolNames()).toEqual([]);
+
+    await collect(session.send("third", { permissionMode: "approve-reads" }));
+    expect(fake?.getActiveToolNames()).toEqual(["read", "grep", "find", "ls"]);
+
+    // 生成直後の初期化に続いて、ターンごとに切り替えた。
+    expect(fake?.activeToolHistory).toEqual([
+      [],
+      ["read", "grep", "find", "ls", "bash", "edit", "write"],
+      [],
+      ["read", "grep", "find", "ls"],
+    ]);
+    // 履歴は継続している（プロンプトが3回届く）。
+    expect(fake?.prompts).toEqual(["first", "second", "third"]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("permissionModeを省略したターンは前のターンの指定を引き継がない", async () => {
+  scripts = [[{ deltas: ["one"] }], [{ deltas: ["two"] }]];
+  const session = await createAgent({
+    cwd: "/project",
+    permissionMode: "approve-reads",
+  }).createSession();
+  const fake = fakes.at(-1);
+
+  try {
+    await collect(session.send("first", { permissionMode: "approve-all" }));
+    expect(fake?.getActiveToolNames()).toEqual([
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "bash",
+      "edit",
+      "write",
+    ]);
+
+    // 省略時はエージェント生成時の指定（approve-reads）に戻り、前のターンを引き継がない。
+    await collect(session.send("second"));
+    expect(fake?.getActiveToolNames()).toEqual(["read", "grep", "find", "ls"]);
+  } finally {
+    await session.close();
+  }
+});
+
+test("閉・混雑・事前中断の判定は権限指定より先に行う", async () => {
+  scripts = [[{ deltas: ["ok"] }]];
+  const session = await createAgent({ cwd: "/project" }).createSession();
+  const fake = fakes.at(-1);
+
+  try {
+    await collect(session.send("first", { permissionMode: "approve-all" }));
+    expect(fake?.prompts).toEqual(["first"]);
+
+    // 事前中断は有効な権限指定より先に判定し、履歴に触れない。
+    const aborted = session
+      .send("second", { abortSignal: AbortSignal.abort(), permissionMode: "approve-all" })
+      [Symbol.asyncIterator]();
+    await expect(aborted.next()).rejects.toMatchObject({ name: "AbortError" });
+    expect(fake?.prompts).toEqual(["first"]);
+    expect(fake?.activeToolHistory).toHaveLength(2);
+  } finally {
+    await session.close();
+  }
+
+  const closed = session.send("third", { permissionMode: "approve-all" })[Symbol.asyncIterator]();
+  await expect(closed.next()).rejects.toMatchObject({
+    code: "session-closed",
+    name: AgentError.name,
+  });
+
+  let releaseBusy = () => {};
+  const busyGate = new Promise<void>((resolve) => {
+    releaseBusy = resolve;
+  });
+  scripts = [[{ deltas: ["partial"], hold: busyGate }]];
+  const busySession = await createAgent({ cwd: "/project" }).createSession();
+  const iterator = busySession.send("first")[Symbol.asyncIterator]();
+  try {
+    await iterator.next();
+    const second = busySession
+      .send("second", { permissionMode: "approve-all" })
+      [Symbol.asyncIterator]();
+    // 混雑も権限指定より先に判定する。
+    await expect(second.next()).rejects.toMatchObject({
+      code: "session-busy",
+      name: AgentError.name,
+    });
+  } finally {
+    releaseBusy();
+    await iterator.return?.();
+    await busySession.close();
+  }
+});
+
+test("ターン単位の指定を扱わないセッションでも事前中断が権限指定より先に判定される", async () => {
+  scripts = [[]];
+  const session = await createPiChatAgent({ cwd: "/project" }).createSession();
+  const fake = fakes.at(-1);
+
+  try {
+    const iterator = session
+      .send("hi", { abortSignal: AbortSignal.abort(), permissionMode: "approve-all" })
+      [Symbol.asyncIterator]();
+    // `permission-unsupported`ではなく中断が先に判定される。
+    await expect(iterator.next()).rejects.toMatchObject({ name: "AbortError" });
+
+    // 権限の切り替えもプロンプトも行わず、履歴にも触れない。
+    expect(fake?.activeToolHistory).toEqual([]);
+    expect(fake?.prompts).toEqual([]);
+    expect(fake?.navigations).toEqual([]);
+  } finally {
+    await session.close();
+  }
 });
 
 test("エージェントの指示をPIのシステムプロンプトの置き換えとして渡す", async () => {

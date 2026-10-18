@@ -24,6 +24,7 @@ const CHAT_SYSTEM_PROMPT =
  * （`noTools: "all"`）、PIの既定プロンプト・技能・文書・拡張を使わない。利用者の
  * `~/.pi/agent`は読まず、セッションごとに一時ディレクトリを割り当てて
  * `{@link AgentSession.close}`で破棄する。呼び出し側にSDKの細かい指定は露出しない。
+ * ターン単位の権限指定は扱わない。
  */
 export function createPiChatAgent(options: PiChatAgentOptions): Agent {
   return {

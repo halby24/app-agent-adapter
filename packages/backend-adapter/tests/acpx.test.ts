@@ -434,6 +434,61 @@ test("ターンの実行中に次のターンを送ると失敗する", async ()
   }
 });
 
+test("進行中のターンがある場合の権限指定はsession-busyが先に判定される", async () => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const fake = new FakeRuntime([
+    {
+      events: (async function* () {
+        yield { type: "text_delta", text: "partial" } as AcpRuntimeEvent;
+        await gate;
+      })(),
+      result: gate.then((): AcpRuntimeTurnResult => ({
+        status: "completed",
+        stopReason: "end_turn",
+      })),
+    },
+    {
+      events: parts({ type: "text_delta", text: "next" }),
+    },
+  ]);
+  const session = await fake.createAgent().createSession();
+  const iterator = session.send("first")[Symbol.asyncIterator]();
+
+  try {
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: { type: "text-delta", text: "partial" },
+    });
+
+    const second = session
+      .send("second", { permissionMode: "approve-all" })
+      [Symbol.asyncIterator]();
+    // `permission-unsupported`ではなく混雑が先に判定される。
+    await expect(second.next()).rejects.toMatchObject({
+      code: "session-busy",
+      name: AgentError.name,
+    });
+  } finally {
+    release();
+    for (let result = await iterator.next(); !result.done; result = await iterator.next()) {
+      // 最初のターンを流し切る。
+    }
+  }
+
+  try {
+    // 保留を解いたあとは通常どおりターンを完了できる。
+    await expect(collect(session.send("third"))).resolves.toEqual([
+      { type: "text-delta", text: "next" },
+      { type: "finish", finishReason: "stop", usage: {}, text: "next" },
+    ]);
+  } finally {
+    await session.close();
+  }
+});
+
 test("closeはセッションを閉じてランタイムを破棄し、複数回呼んでも安全", async () => {
   const fake = new FakeRuntime();
   const session = await fake.createAgent().createSession();
@@ -457,4 +512,61 @@ test("セッションの生成に失敗するとランタイムを破棄する",
 
   await expect(fake.createAgent().createSession()).rejects.toThrow("agent is not installed");
   expect(fake.shutdowns).toBe(1);
+});
+
+test("ターン単位の権限指定は未対応として失敗し、ターンを開始しない", async () => {
+  const fake = new FakeRuntime([{ events: parts({ type: "text_delta", text: "hi" }) }]);
+  const session = await fake.createAgent().createSession();
+
+  try {
+    await expect(
+      collect(session.send("Hi", { permissionMode: "approve-all" })),
+    ).rejects.toMatchObject({
+      code: "permission-unsupported",
+      name: AgentError.name,
+    });
+    // ターンを開始していない。
+    expect(fake.prompts).toEqual([]);
+
+    // 失敗しても次の通常ターンは受け付けられる（`#active`が残らない）。
+    await expect(collect(session.send("Hi"))).resolves.toEqual([
+      { type: "text-delta", text: "hi" },
+      { type: "finish", finishReason: "stop", usage: {}, text: "hi" },
+    ]);
+    expect(fake.prompts).toHaveLength(1);
+  } finally {
+    await session.close();
+  }
+});
+
+test("閉じたセッションへの権限指定はsession-closedが先に判定される", async () => {
+  const fake = new FakeRuntime();
+  const session = await fake.createAgent().createSession();
+
+  await session.close();
+
+  const iterator = session.send("Hi", { permissionMode: "approve-all" })[Symbol.asyncIterator]();
+  // `permission-unsupported`ではなく閉鎖が先に判定される。
+  await expect(iterator.next()).rejects.toMatchObject({
+    code: "session-closed",
+    name: AgentError.name,
+  });
+  expect(fake.prompts).toEqual([]);
+});
+
+test("事前中断済みの権限指定はAbortErrorが先に判定され、ターンを開始しない", async () => {
+  const fake = new FakeRuntime([{ events: parts({ type: "text_delta", text: "hi" }) }]);
+  const session = await fake.createAgent().createSession();
+
+  try {
+    const iterator = session
+      .send("Hi", { abortSignal: AbortSignal.abort(), permissionMode: "approve-all" })
+      [Symbol.asyncIterator]();
+    // `permission-unsupported`ではなく中断が先に判定される。
+    await expect(iterator.next()).rejects.toMatchObject({ name: "AbortError" });
+    // ターンを開始していない。
+    expect(fake.prompts).toEqual([]);
+  } finally {
+    await session.close();
+  }
 });

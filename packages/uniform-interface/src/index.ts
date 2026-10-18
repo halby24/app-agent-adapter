@@ -19,13 +19,13 @@ export type { CodingAgentOptions } from "./coding-agent.ts";
 export { AgentError } from "backend-adapter";
 export type { AgentErrorCode } from "backend-adapter";
 export type {
-  AcpxPermissionMode,
   Agent,
   AgentEvent,
   AgentSession,
   AgentUsage,
   FinishEvent,
   FinishReason,
+  PermissionMode,
   SendOptions,
   SessionOptions,
   TextDeltaEvent,

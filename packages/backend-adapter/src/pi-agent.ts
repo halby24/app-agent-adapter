@@ -8,12 +8,12 @@ import { createIsolatedModelRuntime } from "./pi-runtime.ts";
 import type { PiModelRuntime } from "./pi-runtime.ts";
 import { toToolText } from "./stream-parts.ts";
 import type {
-  AcpxPermissionMode,
   Agent,
   AgentEvent,
   AgentSession,
   AgentUsage,
   FinishReason,
+  PermissionMode,
   PiAgentOptions,
   PiModelSelection,
   SendOptions,
@@ -37,16 +37,23 @@ type PiAssistantMessage = Extract<PiMessage, { role: "assistant" }>;
 const READ_ONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
 
 /**
+ * アダプタが管理するツール名。PIの全ツールではない。
+ *
+ * 管理対象は現行の7つ（読み取り・検索と書き込み・コマンド実行）に限る。
+ * `powershell`は管理対象外であり、ここには含めない。
+ */
+const MANAGED_TOOL_NAMES: readonly string[] = [...READ_ONLY_TOOLS, "bash", "edit", "write"];
+
+/**
  * 操作の扱いごとに有効にするツール。
  *
- * acpxの権限モードに揃える。`deny-all`と`approve-reads`は読み取り以外を許可しないため、
- * 同じツール構成になる（PIのツールは実行時に許可を求めるのではなく、渡したものだけが使える）。
- * `approve-all`は読み取りのツールに、書き込みとコマンド実行のツールを加える。
+ * `deny-all`は有効集合を空にし、`approve-reads`は読み取りと検索だけを有効にする。
+ * `approve-all`は管理対象の7ツールすべてを有効にする。
  */
-const TOOLS_BY_PERMISSION: Record<AcpxPermissionMode, readonly string[]> = {
-  "deny-all": READ_ONLY_TOOLS,
+const TOOLS_BY_PERMISSION: Record<PermissionMode, readonly string[]> = {
+  "deny-all": [],
   "approve-reads": READ_ONLY_TOOLS,
-  "approve-all": [...READ_ONLY_TOOLS, "bash", "edit", "write"],
+  "approve-all": MANAGED_TOOL_NAMES,
 };
 
 /**
@@ -102,7 +109,9 @@ export function createPiAgent(options: PiAgentOptions): Agent {
         resourceLoader,
         // 会話履歴をディスクに残さない。
         sessionManager: SessionManager.inMemory(options.cwd),
-        tools: [...TOOLS_BY_PERMISSION[options.permissionMode ?? "deny-all"]],
+        // 登録は管理対象の最大にしておき、有効化はターンごとに切り替える。
+        tools: [...MANAGED_TOOL_NAMES],
+        permissionMode: options.permissionMode ?? "deny-all",
       });
     },
   };
@@ -143,7 +152,14 @@ export async function startPiSession(
     ...(bootstrap.noTools === undefined ? {} : { noTools: bootstrap.noTools }),
     ...selection,
   });
-  return new PiAgentSession(session, onDispose === undefined ? undefined : { onDispose });
+  if (bootstrap.permissionMode !== undefined) {
+    // 初期の有効集合を既定に合わせる。以降のターンは`send`ごとに切り替える。
+    session.setActiveToolsByName([...TOOLS_BY_PERMISSION[bootstrap.permissionMode]]);
+  }
+  return new PiAgentSession(session, {
+    ...(bootstrap.permissionMode === undefined ? {} : { permissionMode: bootstrap.permissionMode }),
+    ...(onDispose === undefined ? {} : { onDispose }),
+  });
 }
 
 /**
@@ -164,10 +180,17 @@ export interface PiSessionBootstrap {
   readonly settingsManager?: SettingsManager;
   /** PIが全体設定を読む置き場。省略時はPIの既定（`~/.pi/agent`）に従う。 */
   readonly agentDir?: string;
-  /** 有効にするツール名。`noTools`と同時には指定しない。 */
+  /** 登録するツール。有効にするのはターンごとの`setActiveToolsByName`で切り替える。 */
   readonly tools?: string[];
   /** ツールを既定で無効にする方式。`tools`と同時には指定しない。 */
   readonly noTools?: "all";
+  /**
+   * この指定があるセッションだけターン単位の切り替えを扱う。値は初期の有効集合＝既定。
+   *
+   * 省略したセッション（チャット用の固定プロファイル）はターン単位の指定を扱わず、
+   * `send`で指定されると`AgentError`（`permission-unsupported`）で失敗する。
+   */
+  readonly permissionMode?: PermissionMode;
 }
 
 /**
@@ -221,13 +244,18 @@ interface PiTurnState {
 class PiAgentSession implements AgentSession {
   readonly #session: PiSession;
   readonly #onDispose?: () => Promise<void>;
+  readonly #permissionMode?: PermissionMode;
   #active = false;
   #closed = false;
   #closing: Promise<void> | undefined;
   #turn: PiTurnState | undefined;
 
-  constructor(session: PiSession, options?: { onDispose?: () => Promise<void> }) {
+  constructor(
+    session: PiSession,
+    options?: { permissionMode?: PermissionMode; onDispose?: () => Promise<void> },
+  ) {
     this.#session = session;
+    this.#permissionMode = options?.permissionMode;
     this.#onDispose = options?.onDispose;
   }
 
@@ -312,6 +340,19 @@ class PiAgentSession implements AgentSession {
     if (options?.abortSignal?.aborted) {
       // 事前に中断されている場合は`prompt()`を呼ばず、履歴にも触れない。
       throw new DOMException("The turn was cancelled.", "AbortError");
+    }
+    if (options?.permissionMode !== undefined && this.#permissionMode === undefined) {
+      // ターン単位の指定を扱えないセッション。`#active`を立てる前、履歴にも触らない。
+      throw new AgentError(
+        "permission-unsupported",
+        "This session does not support per-turn permissionMode.",
+      );
+    }
+    if (this.#permissionMode !== undefined) {
+      // モードが決まったら`prompt()`の前に有効集合を切り替える。ターン途中の変更はできない。
+      this.#session.setActiveToolsByName([
+        ...TOOLS_BY_PERMISSION[options?.permissionMode ?? this.#permissionMode],
+      ]);
     }
 
     this.#active = true;

@@ -24,6 +24,10 @@ class FakePiSession {
   readonly prompts: string[] = [];
   aborts = 0;
   disposes = 0;
+  /** `setActiveToolsByName`の呼び出し履歴。チャット用では呼ばれない。 */
+  readonly activeToolHistory: string[][] = [];
+  /** 履歴の巻き戻し（`navigateTree`）の呼び出し履歴。 */
+  readonly navigations: unknown[] = [];
   #listeners: Array<(event: AgentSessionEvent) => void> = [];
 
   constructor(private readonly stopReason = "stop") {}
@@ -57,7 +61,8 @@ class FakePiSession {
     });
   }
 
-  async navigateTree(): Promise<unknown> {
+  async navigateTree(...args: unknown[]): Promise<unknown> {
+    this.navigations.push(args);
     return { cancelled: false };
   }
 
@@ -68,6 +73,10 @@ class FakePiSession {
 
   dispose(): void {
     this.disposes += 1;
+  }
+
+  setActiveToolsByName(names: string[]): void {
+    this.activeToolHistory.push([...names]);
   }
 }
 
@@ -274,4 +283,38 @@ test("閉じたセッションへの送信は失敗する", async () => {
     code: "session-closed",
     name: AgentError.name,
   });
+});
+
+test("ターン単位の権限指定は扱わず、履歴に触れずに失敗する", async () => {
+  const session = await createPiChatAgent({ cwd: "/project" }).createSession();
+  const fake = fakes.at(-1);
+
+  try {
+    const iterator = session
+      .send("hello", { permissionMode: "approve-all" })
+      [Symbol.asyncIterator]();
+    await expect(iterator.next()).rejects.toMatchObject({
+      code: "permission-unsupported",
+      name: AgentError.name,
+    });
+
+    // 権限の切り替えもプロンプトも巻き戻しも行わない。
+    expect(fake?.activeToolHistory).toEqual([]);
+    expect(fake?.prompts).toEqual([]);
+    expect(fake?.navigations).toEqual([]);
+
+    // 失敗しても次の通常ターンは受け付けられる（`#active`が残らない）。
+    await expect(collect(session.send("hello"))).resolves.toEqual([
+      { type: "text-delta", text: "hi" },
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        text: "hi",
+      },
+    ]);
+    expect(fake?.prompts).toEqual(["hello"]);
+  } finally {
+    await session.close();
+  }
 });

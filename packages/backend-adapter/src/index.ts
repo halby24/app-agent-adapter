@@ -20,7 +20,6 @@ export type { AgentErrorCode } from "./errors.ts";
 export type {
   AcpxAgent,
   AcpxAgentOptions,
-  AcpxPermissionMode,
   AcpxSessionOptions,
   Agent,
   AgentEvent,
@@ -28,6 +27,7 @@ export type {
   AgentUsage,
   FinishEvent,
   FinishReason,
+  PermissionMode,
   PiAgentOptions,
   PiChatAgentOptions,
   PiModel,

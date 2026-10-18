@@ -151,6 +151,17 @@ class AcpxAgentSession implements AgentSession {
     if (this.#active) {
       throw new AgentError("session-busy", "The session is still processing the previous turn.");
     }
+    if (options?.abortSignal?.aborted) {
+      // 事前に中断されている場合はターンを開始せず、履歴にも触れない。
+      throw new DOMException("The turn was cancelled.", "AbortError");
+    }
+    if (options?.permissionMode !== undefined) {
+      // acpxはランタイム構築時に固定され、ターン単位の変更は未対応である。
+      throw new AgentError(
+        "permission-unsupported",
+        "acpx sessions do not support per-turn permissionMode; it is fixed when the runtime is created.",
+      );
+    }
 
     this.#active = true;
     const abortController = new AbortController();

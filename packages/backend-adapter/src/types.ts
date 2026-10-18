@@ -10,13 +10,17 @@ export type FinishReason = "stop" | "length" | "content-filter" | "tool-calls" |
 /**
  * エージェントが要求した操作（ファイル編集、コマンド実行など）をどう扱うか。
  *
- * acpxの権限モードと同じ値。
+ * バックエンド共通の語彙。アダプタがターン開始時に設定する有効ツールの選択である。
  *
- * - `approve-all`: すべての要求を自動承認する。
- * - `approve-reads`: 読み取りは自動承認し、それ以外は承認しない。
- * - `deny-all`: すべての要求を拒否する。エージェントは読み取り以外の操作ができない。
+ * - `deny-all`: 制御対象の操作を許可しない。PIでは有効集合を空にする。
+ * - `approve-reads`: 読み取りと検索だけを許可する。
+ * - `approve-all`: 制御対象のすべてを許可する。
+ *
+ * @remarks
+ * PIの拡張・MCPを含むすべての実行経路を遮断する機構ではない。読み込まれる拡張は
+ * 信頼済みコードとして扱う。
  */
-export type AcpxPermissionMode = "approve-all" | "approve-reads" | "deny-all";
+export type PermissionMode = "approve-all" | "approve-reads" | "deny-all";
 
 /**
  * セッション生成時に適用する設定。
@@ -53,8 +57,28 @@ export interface SendOptions {
    *
    * @remarks
    * 中断されたターンは会話履歴に反映しない。中断はイテレーションの例外として通知される。
+   * 判定順はセッション状態の失敗（`session-closed`、`session-busy`）、中断、
+   * 権限指定（`permission-unsupported`）の順である。
    */
   readonly abortSignal?: AbortSignal;
+
+  /**
+   * そのターンだけに適用する操作の範囲。
+   *
+   * アダプタがターン開始時に設定する有効ツールの選択である。
+   *
+   * @defaultValue 省略時はエージェント生成時の指定（既定`"deny-all"`）を使う。
+   * @remarks
+   * 前のターンの指定は引き継がない。`send`の反復を開始した時点で確定し、
+   * そのターンの間は変わらない（進行中の変更はできない）。「ターン中は変わらない」は
+   * このAPIで確定したモード値についての説明である。
+   * PIの拡張・MCPを含むすべての実行経路を遮断する機構ではなく、読み込まれる拡張は
+   * 信頼済みコードとして扱う。
+   * ターン単位の指定を扱えないセッション（チャット用の固定プロファイル、
+   * acpx経由のエージェント）に指定すると`AgentError`（`permission-unsupported`）で失敗する。
+   * 判定順はセッション状態の失敗、中断、権限指定の順である。
+   */
+  readonly permissionMode?: PermissionMode;
 }
 
 /** モデルが生成したテキストの断片。 */
@@ -218,7 +242,9 @@ export interface AgentSession {
    * @param options - ターン固有の設定。
    * @returns モデルの出力イベントを順に返すイテラブル。
    * @throws `AgentError` — セッションが閉じている場合（`session-closed`）、
-   * または前のターンが進行中の場合（`session-busy`）。
+   * 前のターンが進行中の場合（`session-busy`）、またはターン単位の権限指定を
+   * 扱えないセッションに指定した場合（`permission-unsupported`）。
+   * 判定順はセッション状態の失敗、中断（`AbortError`）、権限指定の順である。
    * @remarks
    * リクエストは返されたイテラブルの反復を開始した時点で送信される。反復を途中で終了すると、
    * 進行中のリクエストを中断する。
@@ -283,12 +309,14 @@ export interface AcpxAgentOptions {
   /**
    * エージェントが要求した操作の扱い。
    *
+   * 生成時の指定で固定され、ターン単位の変更は未対応である。
+   *
    * @defaultValue `"deny-all"`
    * @remarks
    * 既定ではすべての操作要求を拒否する。書き込みやコマンド実行を許す場合は
    * `"approve-all"`などを明示する。
    */
-  readonly permissionMode?: AcpxPermissionMode;
+  readonly permissionMode?: PermissionMode;
 }
 
 /**
@@ -336,12 +364,15 @@ export interface PiAgentOptions {
   /**
    * エージェントが要求した操作の扱い。
    *
+   * 全セッション共通の既定。各ターンは`{@link SendOptions.permissionMode}`で上書きできる。
+   *
    * @defaultValue `"deny-all"`
    * @remarks
-   * acpxの権限モードと同じ語彙を使う。`"deny-all"`と`"approve-reads"`では
-   * 読み取り以外のツール（書き込み、コマンド実行）を渡さないため、結果は同じになる。
+   * PIの権限モードと同じ語彙を使う。PIでは実行時に許可を求めるのではなく、
+   * ターンごとに有効なツール集合を切り替える。
+   * `"deny-all"`はツールを1つも有効にせず、`"approve-reads"`は読み取りと検索だけを有効にする。
    */
-  readonly permissionMode?: AcpxPermissionMode;
+  readonly permissionMode?: PermissionMode;
 }
 
 /**

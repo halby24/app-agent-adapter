@@ -28,4 +28,4 @@ export { listModels, toBackendProviderId } from "./models.ts";
 export type { ListModelsOptions, ModelOption } from "./models.ts";
 export { listAcpxHarnesses } from "./acpx-harnesses.ts";
 export type { AcpxHarness, AcpxHarnessStatus } from "./acpx-harnesses.ts";
-export type { AcpxPermissionMode } from "backend-adapter";
+export type { PermissionMode } from "backend-adapter";

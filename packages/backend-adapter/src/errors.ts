@@ -3,9 +3,14 @@
  *
  * - `session-closed`: 閉じたセッションでターンを送信しようとした。
  * - `session-busy`: 前のターンが完了する前に次のターンを送信しようとした。
+ * - `permission-unsupported`: ターン単位の権限指定を扱えないセッションに指定した。
  * - `turn-failed`: エージェントがターンを失敗として終えた。
  */
-export type AgentErrorCode = "session-closed" | "session-busy" | "turn-failed";
+export type AgentErrorCode =
+  | "session-closed"
+  | "session-busy"
+  | "permission-unsupported"
+  | "turn-failed";
 
 /**
  * エージェントの状態に起因する失敗。

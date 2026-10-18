@@ -86,6 +86,8 @@ try {
 
 どちらのバックエンドが使われるかは選んだ種類で決まり、利用者側で意識する必要はない。プロバイダを選んだ場合のモデルはモデルIDとAPIキーで指定する（バックエンドがプロバイダのモデルとして解決するため）。
 
+`permissionMode` はエージェント生成時の既定である。プロバイダ（内蔵のPI Coding Agent）では `session.send(input, { permissionMode })` でターン単位に上書きできる。
+
 ```ts
 const agent = createCodingAgent({
   kind: "provider",

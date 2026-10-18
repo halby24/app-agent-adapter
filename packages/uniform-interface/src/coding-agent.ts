@@ -1,4 +1,4 @@
-import type { AcpxPermissionMode, Agent } from "backend-adapter";
+import type { Agent, PermissionMode } from "backend-adapter";
 import { createAcpxAgent, createPiAgent } from "backend-adapter";
 import type { HarnessChoice, ProviderChoice } from "provider-management";
 import { toBackendProviderId } from "provider-management";
@@ -41,7 +41,7 @@ export type CodingAgentOptions =
        *
        * @defaultValue 省略時はバックエンドの既定（`"deny-all"`）。
        */
-      readonly permissionMode?: AcpxPermissionMode;
+      readonly permissionMode?: PermissionMode;
     })
   | (HarnessChoice & {
       /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
@@ -68,7 +68,7 @@ export type CodingAgentOptions =
        *
        * @defaultValue 省略時はバックエンドの既定（acpxは`"deny-all"`）。
        */
-      readonly permissionMode?: AcpxPermissionMode;
+      readonly permissionMode?: PermissionMode;
     });
 
 /**
