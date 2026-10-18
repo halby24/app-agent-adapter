@@ -13,26 +13,7 @@ import { tmpdir } from "node:os";
 import type { AgentSession } from "uniform-interface";
 import { createChatAgent } from "uniform-interface";
 import type { BackendOption, ChatTestRPC, Result, SessionConfig } from "../shared/rpc.ts";
-
-/**
- * プロバイダのAPIキーを読む環境変数。
- *
- * キーの入手（環境変数、キーチェーン、利用者による入力など）はアプリ側の責務なので、
- * このアプリが対応する範囲をここで決める。画面で入力されたキーが優先される。
- */
-const API_KEY_ENV_VARS: Record<string, string> = {
-  openai: "OPENAI_API_KEY",
-  anthropic: "ANTHROPIC_API_KEY",
-  google: "GOOGLE_GENERATIVE_AI_API_KEY",
-  xai: "XAI_API_KEY",
-  mistral: "MISTRAL_API_KEY",
-  groq: "GROQ_API_KEY",
-  deepseek: "DEEPSEEK_API_KEY",
-  cerebras: "CEREBRAS_API_KEY",
-  togetherai: "TOGETHER_API_KEY",
-  fireworks: "FIREWORKS_API_KEY",
-  moonshotai: "MOONSHOT_API_KEY",
-};
+import { environmentApiKey } from "../shared/api-keys.ts";
 
 /** 進行中のセッション。同時に1つだけ持つ。 */
 let session: AgentSession | undefined;
@@ -171,11 +152,4 @@ async function closeSession(): Promise<void> {
   const current = session;
   session = undefined;
   await current?.close();
-}
-
-/** 環境変数からプロバイダのAPIキーを読む。 */
-function environmentApiKey(providerId: string): string | undefined {
-  const name = API_KEY_ENV_VARS[providerId];
-  const value = name ? process.env[name] : undefined;
-  return value === undefined || value === "" ? undefined : value;
 }

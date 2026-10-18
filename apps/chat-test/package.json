@@ -15,7 +15,8 @@
     "devkit": "electrobun prepare",
     "start": "electrobun dev --watch",
     "typecheck": "electrobun prepare && tsc --noEmit",
-    "bundle": "electrobun build --env=stable"
+    "bundle": "electrobun build --env=stable",
+    "debug:chat": "bun src/debug/chat.ts"
   },
   "dependencies": {
     "provider-management": "workspace:*",
