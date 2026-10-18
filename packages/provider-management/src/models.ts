@@ -39,17 +39,11 @@ export interface ModelOption {
  * バックエンドの種類ごとに必要な指定が変わる。
  */
 export type ListModelsOptions =
-  | {
-      /** モデルを調べるプロバイダ。 */
-      readonly choice: ProviderChoice;
-    }
-  | {
-      /** モデルを調べるハーネス。 */
-      readonly choice: HarnessChoice;
-
+  | ProviderChoice
+  | (HarnessChoice & {
       /** ハーネスを起動する作業ディレクトリ。 */
       readonly cwd: string;
-    };
+    });
 
 /**
  * 選んだバックエンドが使えるモデルを列挙する。
@@ -62,11 +56,9 @@ export type ListModelsOptions =
  * エージェントのプロセスを1つ起動する。
  */
 export async function listModels(options: ListModelsOptions): Promise<readonly ModelOption[]> {
-  // ハーネスを選んだ場合だけ作業ディレクトリを指定できる。型では種類ごとに分かれているため、
-  // ここでは指定の有無で判別する。
-  if ("cwd" in options) {
-    return listAcpxModels({ agent: options.choice.id, cwd: options.cwd });
+  if (options.kind === "harness") {
+    return listAcpxModels({ agent: options.id, cwd: options.cwd });
   }
-  const models = await listPiModels({ provider: toBackendProviderId(options.choice.id) });
+  const models = await listPiModels({ provider: toBackendProviderId(options.id) });
   return models.map((model) => ({ id: model.id, name: model.name }));
 }

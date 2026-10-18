@@ -36,11 +36,8 @@ const rpc = BrowserView.defineRPC<ChatTestRPC>({
         // 画面が送るIDは一覧から選ばれたものなので、ここでリテラル型に絞る。
         const models =
           kind === "provider"
-            ? await listModels({ choice: { kind: "provider", id: id as ProviderId } })
-            : await listModels({
-                choice: { kind: "harness", id: id as HarnessChoice["id"] },
-                cwd: tmpdir(),
-              });
+            ? await listModels({ kind: "provider", id: id as ProviderId })
+            : await listModels({ kind: "harness", id: id as HarnessChoice["id"], cwd: tmpdir() });
         return models.map((model) => ({ id: model.id, name: model.name }));
       },
 

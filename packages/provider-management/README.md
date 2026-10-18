@@ -31,7 +31,7 @@ const option = listAgentOptions().find((entry) => entry.kind === "harness");
 const choice = toAgentChoice(option);
 
 // ハーネスが利用できるモデルを調べる（作業ディレクトリは、モデルの調査にも使う）
-const models = await listModels({ choice, cwd: "/path/to/project" });
+const models = await listModels({ kind: "harness", id: "claude", cwd: "/path/to/project" });
 
 // あとは uniform-interface に、実行時の指定と合わせて渡す
 ```
@@ -97,11 +97,12 @@ for (const harness of listAcpxHarnesses()) {
 import { listModels } from "provider-management";
 
 // プロバイダ（内蔵のコーディングエージェントが持つモデル定義から返す。問い合わせも認証も不要）
-const models = await listModels({ choice: { kind: "provider", id: "anthropic" } });
+const models = await listModels({ kind: "provider", id: "anthropic" });
 
 // ハーネス（acpxで調べるため、エージェントのプロセスを1つ起動する）
 const agentModels = await listModels({
-  choice: { kind: "harness", id: "claude" },
+  kind: "harness",
+  id: "claude",
   cwd: "/path/to/project",
 });
 ```
