@@ -3,51 +3,19 @@ import { createAcpxAgent, createPiChatAgent } from "backend-adapter";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { toBackendProviderId } from "provider-management";
-import type { HarnessChoice, ProviderChoice } from "provider-management";
+import type { AgentConnection } from "./backend-selection.ts";
+import { toPiModel } from "./backend-selection.ts";
 
 /**
  * チャット用エージェントの生成設定。
  *
  * 選んだバックエンドに、チャットに必要な指定を加えたもの。ファイルの読み書きと
  * ツールの利用は行わない。どちらのバックエンドもモデルはIDとAPIキーで指定する。
+ *
+ * @remarks
+ * プロバイダを選んだ場合、`instructions`の省略時や空文字のときは短い中立のチャット指示を使う。
  */
-export type ChatAgentOptions =
-  | (ProviderChoice & {
-      /**
-       * セッションで使うモデルID。
-       *
-       * `provider-management`の`listModels()`で調べられる。
-       */
-      readonly model: string;
-
-      /** プロバイダのAPIキー。 */
-      readonly apiKey: string;
-
-      /**
-       * すべてのセッションに適用するシステム指示。
-       *
-       * @defaultValue 省略時や空文字の場合は短い中立のチャット指示を使う。
-       */
-      readonly instructions?: string;
-    })
-  | (HarnessChoice & {
-      /**
-       * セッションで使うモデル。
-       *
-       * エージェントが受け付けるモデルID（`"gpt-5.4"`など）を指定する。
-       *
-       * @defaultValue 省略時はエージェントが選ぶ既定のモデル。
-       */
-      readonly model?: string;
-
-      /**
-       * すべてのセッションに適用するシステム指示。
-       *
-       * @defaultValue 省略時はシステム指示を送信しない。
-       */
-      readonly instructions?: string;
-    });
+export type ChatAgentOptions = AgentConnection;
 
 /**
  * チャット用のエージェントを生成する。
@@ -61,65 +29,31 @@ export type ChatAgentOptions =
  * 一時ディレクトリを作り、`{@link AgentSession.close}`で片付ける。
  */
 export function createChatAgent(options: ChatAgentOptions): Agent {
+  return {
+    createSession: (sessionOptions) =>
+      createSessionWithTempWorkspace((cwd) => createChatSession(options, cwd, sessionOptions)),
+  };
+}
+
+function createChatSession(
+  options: ChatAgentOptions,
+  cwd: string,
+  sessionOptions: SessionOptions | undefined,
+): Promise<AgentSession> {
   if (options.kind === "provider") {
-    return createProviderChatAgent(options);
+    return createPiChatAgent({
+      cwd,
+      model: toPiModel(options),
+      instructions: options.instructions,
+    }).createSession(sessionOptions);
   }
-  return createHarnessChatAgent(options);
-}
-
-/**
- * プロバイダを選んだときのチャット用エージェントを生成する。
- *
- * 内蔵のPI Coding Agentをチャット用に固定した構成で動かす。モデルとAPIキーは
- * バックエンドが扱うプロバイダ名に読み替えて渡す。
- */
-function createProviderChatAgent(
-  options: ProviderChoice & {
-    readonly model: string;
-    readonly apiKey: string;
-    readonly instructions?: string;
-  },
-): Agent {
-  return {
-    async createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
-      return createSessionWithTempWorkspace((cwd) =>
-        createPiChatAgent({
-          cwd,
-          model: {
-            provider: toBackendProviderId(options.id),
-            id: options.model,
-            apiKey: options.apiKey,
-          },
-          instructions: options.instructions,
-        }).createSession(sessionOptions),
-      );
-    },
-  };
-}
-
-/**
- * ハーネスをチャット用に使うエージェントを生成する。
- *
- * チャットには作業ディレクトリの指定がないため、セッションごとに使い捨ての
- * 作業ディレクトリを作り、`"deny-all"`でファイルの読み書きとコマンド実行を拒否する。
- */
-function createHarnessChatAgent(
-  options: HarnessChoice & { readonly model?: string; readonly instructions?: string },
-): Agent {
-  return {
-    async createSession(sessionOptions?: SessionOptions): Promise<AgentSession> {
-      return createSessionWithTempWorkspace((cwd) =>
-        createAcpxAgent({
-          agent: options.id,
-          cwd,
-          model: options.model,
-          instructions: options.instructions,
-          // チャットなので、エージェントに操作を許さない。
-          permissionMode: "deny-all",
-        }).createSession(sessionOptions),
-      );
-    },
-  };
+  return createAcpxAgent({
+    agent: options.id,
+    cwd,
+    model: options.model,
+    instructions: options.instructions,
+    permissionMode: "deny-all", // チャットなので、エージェントに操作を許さない。
+  }).createSession(sessionOptions);
 }
 
 /**

@@ -1,7 +1,20 @@
-import type { Agent, PermissionMode } from "backend-adapter";
+import type { Agent } from "backend-adapter";
 import { createAcpxAgent, createPiAgent } from "backend-adapter";
-import type { HarnessChoice, ProviderChoice } from "provider-management";
-import { toBackendProviderId } from "provider-management";
+import type { PermissionMode } from "backend-adapter";
+import type { HarnessConnection, ProviderConnection } from "./backend-selection.ts";
+import { toPiModel } from "./backend-selection.ts";
+
+type CodingExtras = {
+  /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
+  readonly cwd: string;
+
+  /**
+   * エージェントが要求した操作の扱い。
+   *
+   * @defaultValue 省略時はバックエンドの既定（`"deny-all"`）。
+   */
+  readonly permissionMode?: PermissionMode;
+};
 
 /**
  * エージェント向けの生成設定。
@@ -11,65 +24,13 @@ import { toBackendProviderId } from "provider-management";
  *
  * - ハーネス: acpxでエージェントを起動する
  * - プロバイダ: 内蔵のPI Coding Agentを動かす。プロバイダのAPIキーとモデルIDを指定する
+ *
+ * @remarks
+ * プロバイダを選んだ場合、`instructions`を省略したときはPIの既定プロンプトを使う。
  */
 export type CodingAgentOptions =
-  | (ProviderChoice & {
-      /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
-      readonly cwd: string;
-
-      /**
-       * セッションで使うモデルID。
-       *
-       * @remarks
-       * チャットと同じくモデルIDとAPIキーで指定し、バックエンドが
-       * プロバイダのモデルとして解決する。
-       */
-      readonly model: string;
-
-      /** プロバイダのAPIキー。 */
-      readonly apiKey: string;
-
-      /**
-       * すべてのセッションに適用するシステム指示。
-       *
-       * @defaultValue 省略時はシステム指示を送信しない。
-       */
-      readonly instructions?: string;
-
-      /**
-       * エージェントが要求した操作の扱い。
-       *
-       * @defaultValue 省略時はバックエンドの既定（`"deny-all"`）。
-       */
-      readonly permissionMode?: PermissionMode;
-    })
-  | (HarnessChoice & {
-      /** セッションの作業ディレクトリ。エージェントはこのディレクトリを基準にファイルを扱う。 */
-      readonly cwd: string;
-
-      /**
-       * セッションで使うモデル。
-       *
-       * エージェントが受け付けるモデルID（`"gpt-5.4"`など）を指定する。
-       *
-       * @defaultValue 省略時はエージェントが選ぶ既定のモデル。
-       */
-      readonly model?: string;
-
-      /**
-       * すべてのセッションに適用するシステム指示。
-       *
-       * @defaultValue 省略時はシステム指示を送信しない。
-       */
-      readonly instructions?: string;
-
-      /**
-       * エージェントが要求した操作の扱い。
-       *
-       * @defaultValue 省略時はバックエンドの既定（acpxは`"deny-all"`）。
-       */
-      readonly permissionMode?: PermissionMode;
-    });
+  | (ProviderConnection & CodingExtras)
+  | (HarnessConnection & CodingExtras);
 
 /**
  * エージェント向けのエージェントを生成する。
@@ -84,11 +45,7 @@ export function createCodingAgent(options: CodingAgentOptions): Agent {
   if (options.kind === "provider") {
     return createPiAgent({
       cwd: options.cwd,
-      model: {
-        provider: toBackendProviderId(options.id),
-        id: options.model,
-        apiKey: options.apiKey,
-      },
+      model: toPiModel(options),
       instructions: options.instructions,
       permissionMode: options.permissionMode,
     });
